@@ -583,7 +583,6 @@ def trading_bot():
     except telegram.error.InvalidToken:
         logger.warning("Invalid Telegram bot token. Telegram functionality disabled.")
         bot = None
-    # Amendment 1: Replaced telegram.error.ChatNotFound with telegram.error.BadRequest
     except telegram.error.BadRequest:
         logger.warning(f"Invalid chat ID or bot not added to chat: {CHAT_ID}. Telegram functionality disabled.")
         bot = None
@@ -626,7 +625,6 @@ def trading_bot():
         'strategy': 'initial'
     }
     store_signal(initial_signal)
-    # Amendment 2: Changed database name from re_bot.db to ren_bot.db
     upload_to_github('ren_bot.db', 'ren_bot.db')
     logger.info("Initial hold signal generated")
 
@@ -686,7 +684,6 @@ def trading_bot():
                             send_telegram_message(signal, BOT_TOKEN, CHAT_ID)
                     position = None
                 logger.info("Bot stopped due to time limit")
-                # Amendment 3: Changed database name from re_bot.db to ren_bot.db
                 upload_to_github('ren_bot.db', 'ren_bot.db')
                 break
 
@@ -758,7 +755,6 @@ def trading_bot():
                                         position = None
                                     bot_active = False
                                 bot.send_message(chat_id=command_chat_id, text="Bot stopped.")
-                                # Amendment 4: Changed database name from re_bot.db to ren_bot.db
                                 upload_to_github('ren_bot.db', 'ren_bot.db')
                             elif text.startswith('/stop') and text[5:].isdigit():
                                 multiplier = int(text[5:])
@@ -785,7 +781,6 @@ def trading_bot():
                                         position = None
                                     bot_active = False
                                 bot.send_message(chat_id=command_chat_id, text=f"Bot paused for {pause_duration/60} minutes.")
-                                # Amendment 5: Changed database name from re_bot.db to ren_bot.db
                                 upload_to_github('ren_bot.db', 'ren_bot.db')
                             elif text == '/start':
                                 with bot_lock:
@@ -808,7 +803,6 @@ def trading_bot():
                 except telegram.error.InvalidToken:
                     logger.warning("Invalid Telegram bot token. Skipping Telegram updates.")
                     bot = None
-                # Amendment 6: Replaced telegram.error.ChatNotFound with telegram.error.BadRequest
                 except telegram.error.BadRequest:
                     logger.warning(f"Invalid chat ID or bot not added to chat: {CHAT_ID}. Skipping Telegram updates.")
                     bot = None
@@ -828,7 +822,7 @@ def trading_bot():
 
             prev_close = df['Close'].iloc[-2] if len(df) >= 2 else df['Close'].iloc[-1]
             percent_change = ((current_price - prev_close) / prev_close * 100) if prev_close != 0 else 0.0
-            # Previous Amendment: Initialize stop_loss and take_profit to None to ensure they are always defined
+            # Amendment 1: Initialize stop_loss and take_profit to None to ensure they are always defined
             stop_loss = None
             take_profit = None
             action, stop_loss, take_profit, order_id = ai_decision(df, position=position, buy_price=buy_price)
@@ -841,22 +835,31 @@ def trading_bot():
                     position = "long"
                     buy_price = current_price
                     return_profit, msg_suffix = handle_second_strategy("buy", current_price, 0)
+                    # Amendment 2: Include stop_loss and take_profit in buy message if defined
                     msg = f"BUY {SYMBOL} at {current_price:.4f}, Order ID: {order_id}{msg_suffix}"
+                    if stop_loss is not None:
+                        msg += f", Stop-Loss: {stop_loss:.4f}"
+                    if take_profit is not None:
+                        msg += f", Take-Profit: {take_profit:.4f}"
                 elif bot_active and action == "sell" and position == "long":
                     profit = current_price - buy_price
                     total_profit += profit
                     return_profit, msg_suffix = handle_second_strategy("sell", current_price, profit)
                     msg = f"SELL {SYMBOL} at {current_price:.4f}, Profit: {profit:.4f}, Order ID: {order_id}{msg_suffix}"
-                    # Previous Amendment: Check stop_loss and take_profit for None explicitly and only append message if position is long
+                    # Amendment 3: Check stop_loss and take_profit for None explicitly and only append message if position is long
                     if position == "long" and stop_loss is not None and current_price <= stop_loss:
                         msg += " (Stop-Loss)"
                     elif position == "long" and take_profit is not None and current_price >= take_profit:
                         msg += " (Take-Profit)"
                     position = None
-                # Previous Amendment: Added else block to handle hold action explicitly
+                # Amendment 4: Handle hold action explicitly, including stop_loss and take_profit in message if defined and position is long
                 else:
                     return_profit, msg_suffix = handle_second_strategy(action, current_price, 0)
                     msg = f"HOLD {SYMBOL} at {current_price:.4f}{msg_suffix}"
+                    if position == "long" and stop_loss is not None:
+                        msg += f", Stop-Loss: {stop_loss:.4f}"
+                    if position == "long" and take_profit is not None:
+                        msg += f", Take-Profit: {take_profit:.4f}"
 
                 signal = create_signal(action, current_price, latest_data, df, profit, total_profit, return_profit, total_return_profit, msg, order_id, "primary")
                 store_signal(signal)
@@ -866,7 +869,6 @@ def trading_bot():
                     threading.Thread(target=send_telegram_message, args=(signal, BOT_TOKEN, CHAT_ID), daemon=True).start()
 
             if bot_active and action != "hold":
-                # Amendment 7: Changed database name from re_bot.db to ren_bot.db
                 upload_to_github('ren_bot.db', 'ren_bot.db')
 
             loop_end_time = datetime.now(EU_TZ)
@@ -1140,6 +1142,7 @@ if __name__ == "__main__":
     asyncio.run(main())
 
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 

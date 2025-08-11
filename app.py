@@ -541,16 +541,12 @@ def get_next_timeframe_boundary(current_time, timeframe_seconds):
     return seconds_until_boundary
 
 # Trading bot function
-# Trading bot
 def trading_bot():
     global bot_active, position, buy_price, total_profit, pause_duration, pause_start, conn, stop_time
     bot = None
     try:
         bot = Bot(token=BOT_TOKEN)
         logger.info("Telegram bot initialized successfully")
-        stop_loss = buy_price * (1 + stop_loss_percent / 100)
-        take_profit = buy_price * (1 + take_profit_percent / 100)
-        # Send test message to verify Telegram setup
         test_signal = {
             'time': datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S"),
             'action': 'test',
@@ -576,7 +572,7 @@ def trading_bot():
             'macd': 0.0,
             'macd_signal': 0.0,
             'macd_hist': 0.0,
-            'lst_diff': 0.0,  # Added lst_diff
+            'lst_diff': 0.0,
             'message': f"Test message for {SYMBOL} bot startup",
             'timeframe': TIMEFRAME,
             'order_id': None,
@@ -623,14 +619,15 @@ def trading_bot():
         'macd': 0.0,
         'macd_signal': 0.0,
         'macd_hist': 0.0,
-        'lst_diff': 0.0,  # Added lst_diff
+        'lst_diff': 0.0,
         'message': f"Initializing bot for {SYMBOL}",
         'timeframe': TIMEFRAME,
         'order_id': None,
         'strategy': 'initial'
     }
     store_signal(initial_signal)
-    upload_to_github(db_path, 'ren_bot.db')
+    # Amendment 2: Changed database name from re_bot.db to ren_bot.db
+    upload_to_github('ren_bot.db', 'ren_bot.db')
     logger.info("Initial hold signal generated")
 
     for attempt in range(3):
@@ -689,7 +686,8 @@ def trading_bot():
                             send_telegram_message(signal, BOT_TOKEN, CHAT_ID)
                     position = None
                 logger.info("Bot stopped due to time limit")
-                upload_to_github(db_path, 'ren_bot.db')
+                # Amendment 3: Changed database name from re_bot.db to ren_bot.db
+                upload_to_github('ren_bot.db', 'ren_bot.db')
                 break
 
             if not bot_active:
@@ -760,7 +758,8 @@ def trading_bot():
                                         position = None
                                     bot_active = False
                                 bot.send_message(chat_id=command_chat_id, text="Bot stopped.")
-                                upload_to_github(db_path, 'ren_bot.db')
+                                # Amendment 4: Changed database name from re_bot.db to ren_bot.db
+                                upload_to_github('ren_bot.db', 'ren_bot.db')
                             elif text.startswith('/stop') and text[5:].isdigit():
                                 multiplier = int(text[5:])
                                 with bot_lock:
@@ -786,7 +785,8 @@ def trading_bot():
                                         position = None
                                     bot_active = False
                                 bot.send_message(chat_id=command_chat_id, text=f"Bot paused for {pause_duration/60} minutes.")
-                                upload_to_github(db_path, 'ren_bot.db')
+                                # Amendment 5: Changed database name from re_bot.db to ren_bot.db
+                                upload_to_github('ren_bot.db', 'ren_bot.db')
                             elif text == '/start':
                                 with bot_lock:
                                     if not bot_active:
@@ -808,7 +808,7 @@ def trading_bot():
                 except telegram.error.InvalidToken:
                     logger.warning("Invalid Telegram bot token. Skipping Telegram updates.")
                     bot = None
-                # Amendment 2: Replaced telegram.error.ChatNotFound with telegram.error.BadRequest
+                # Amendment 6: Replaced telegram.error.ChatNotFound with telegram.error.BadRequest
                 except telegram.error.BadRequest:
                     logger.warning(f"Invalid chat ID or bot not added to chat: {CHAT_ID}. Skipping Telegram updates.")
                     bot = None
@@ -828,6 +828,9 @@ def trading_bot():
 
             prev_close = df['Close'].iloc[-2] if len(df) >= 2 else df['Close'].iloc[-1]
             percent_change = ((current_price - prev_close) / prev_close * 100) if prev_close != 0 else 0.0
+            # Previous Amendment: Initialize stop_loss and take_profit to None to ensure they are always defined
+            stop_loss = None
+            take_profit = None
             action, stop_loss, take_profit, order_id = ai_decision(df, position=position, buy_price=buy_price)
 
             with bot_lock:
@@ -844,11 +847,16 @@ def trading_bot():
                     total_profit += profit
                     return_profit, msg_suffix = handle_second_strategy("sell", current_price, profit)
                     msg = f"SELL {SYMBOL} at {current_price:.4f}, Profit: {profit:.4f}, Order ID: {order_id}{msg_suffix}"
-                    if stop_loss and current_price <= stop_loss:
+                    # Previous Amendment: Check stop_loss and take_profit for None explicitly and only append message if position is long
+                    if position == "long" and stop_loss is not None and current_price <= stop_loss:
                         msg += " (Stop-Loss)"
-                    elif take_profit and current_price >= take_profit:
+                    elif position == "long" and take_profit is not None and current_price >= take_profit:
                         msg += " (Take-Profit)"
                     position = None
+                # Previous Amendment: Added else block to handle hold action explicitly
+                else:
+                    return_profit, msg_suffix = handle_second_strategy(action, current_price, 0)
+                    msg = f"HOLD {SYMBOL} at {current_price:.4f}{msg_suffix}"
 
                 signal = create_signal(action, current_price, latest_data, df, profit, total_profit, return_profit, total_return_profit, msg, order_id, "primary")
                 store_signal(signal)
@@ -858,7 +866,8 @@ def trading_bot():
                     threading.Thread(target=send_telegram_message, args=(signal, BOT_TOKEN, CHAT_ID), daemon=True).start()
 
             if bot_active and action != "hold":
-                upload_to_github(db_path, 'ren_bot.db')
+                # Amendment 7: Changed database name from re_bot.db to ren_bot.db
+                upload_to_github('ren_bot.db', 'ren_bot.db')
 
             loop_end_time = datetime.now(EU_TZ)
             processing_time = (loop_end_time - loop_start_time).total_seconds()
@@ -874,7 +883,7 @@ def trading_bot():
             current_time = datetime.now(EU_TZ)
             seconds_to_wait = get_next_timeframe_boundary(current_time, timeframe_seconds)
             time.sleep(seconds_to_wait)
-
+            
 # Helper functions
 def create_signal(action, current_price, latest_data, df, profit, total_profit, return_profit, total_return_profit, msg, order_id, strategy):
     latest = df.iloc[-1]
@@ -1131,5 +1140,6 @@ if __name__ == "__main__":
     asyncio.run(main())
 
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 

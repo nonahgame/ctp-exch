@@ -402,7 +402,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
             action = "sell"
 
     if action == "hold" and position is None:
-        if (kdj_j < - 30.00 and ema1 < ema2 or kdj_j < kdj_d and macd < macd_signal and rsi < 40.00):
+        if (kdj_j < - 30.00 and ema1 < ema2 or kdj_j < kdj_d and macd < macd_signal and rsi < 18.00):
             logger.info(f"Buy condition met: kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, close={close_price:.4f}, open={open_price:.4f}, ema1={ema1:.4f}, ema2={ema2:.4f}")
             action = "buy"
         elif (close_price > open_price and kdj_j > kdj_d and macd > macd_signal and kdj_j < 115.00 and ema1 > ema2):
@@ -414,10 +414,10 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif (close_price > open_price and kdj_j > kdj_d and macd > macd_signal and kdj_j < 114.00):
             logger.info(f"Buy condition met: kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, close={close_price:.4f}, open={open_price:.4f}, ema1={ema1:.4f}, ema2={ema2:.4f}")
             action = "buy"
-        elif (close_price > open_price and kdj_j > kdj_d and macd < macd_signal and kdj_j > 45.00 and rsi < 40.00 and ema1 < ema2):
+        elif (close_price > open_price and kdj_j > kdj_d and macd < macd_signal and kdj_j > 45.00 and rsi < 18.00 and ema1 < ema2):
             logger.info(f"Buy condition met: close={close_price:.4f}, open={open_price:.4f}, kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, DIF={macd:.4f}, DEA={macd_signal:.4f}")
             action = "buy"
-        elif (close_price > open_price and kdj_j < kdj_d and macd > macd_signal and kdj_j > 40.00 and rsi < 40.00 and ema1 < ema2):
+        elif (close_price > open_price and kdj_j < kdj_d and macd > macd_signal and kdj_j > 40.00 and rsi < 18.00 and ema1 < ema2):
             logger.info(f"Buy condition met: close={close_price:.4f}, open={open_price:.4f}, kdj_j={kdj_j:.4f}, kdj_d={kdj_d:.4f}, DIF={macd:.4f}, DEA={macd_signal:.4f}")
             action = "buy"
 
@@ -1119,3 +1119,4 @@ if __name__ == "__main__":
     asyncio.run(main())
 
     app.run(host='0.0.0.0', port=port, debug=False)
+

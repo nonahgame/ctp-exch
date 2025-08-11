@@ -81,7 +81,7 @@ HEADERS = {
 }
 
 # Database path
-db_path = 're_bot.db'
+db_path = 'ren_bot.db'
 
 # Timezone setup
 EU_TZ = pytz.utc
@@ -207,7 +207,7 @@ def setup_database():
                         logger.info(f"Removed corrupted database file at {db_path}")
 
                 logger.info(f"Attempting to download database from GitHub: {GITHUB_API_URL}")
-                if download_from_github('re_bot.db', db_path):
+                if download_from_github('ren_bot.db', db_path):
                     logger.info(f"Downloaded database from GitHub to {db_path}")
                     try:
                         test_conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -269,7 +269,7 @@ def setup_database():
                         logger.info(f"Added column {col} to trades table")
                 conn.commit()
                 logger.info(f"Database initialized successfully at {db_path}, size: {os.path.getsize(db_path)} bytes")
-                upload_to_github(db_path, 're_bot.db')
+                upload_to_github(db_path, 'ren_bot.db')
                 return True
             except sqlite3.Error as e:
                 logger.error(f"SQLite error during database setup (attempt {attempt + 1}/3): {e}", exc_info=True)
@@ -815,7 +815,7 @@ def trading_bot():
 
             prev_close = df['Close'].iloc[-2] if len(df) >= 2 else df['Close'].iloc[-1]
             percent_change = ((current_price - prev_close) / prev_close * 100) if prev_close != 0 else 0.0
-            # Amendment: Initialize stop_loss and take_profit to None to prevent undefined variable errors
+            # Amendment 1: Initialize stop_loss and take_profit to None to ensure they are always defined
             stop_loss = None
             take_profit = None
             action, stop_loss, take_profit, order_id = ai_decision(df, position=position, buy_price=buy_price)
@@ -834,12 +834,16 @@ def trading_bot():
                     total_profit += profit
                     return_profit, msg_suffix = handle_second_strategy("sell", current_price, profit)
                     msg = f"SELL {SYMBOL} at {current_price:.4f}, Profit: {profit:.4f}, Order ID: {order_id}{msg_suffix}"
-                    # Amendment: Added checks for stop_loss and take_profit to be not None before comparison
-                    if stop_loss is not None and current_price <= stop_loss:
+                    # Amendment 2: Check stop_loss and take_profit for None explicitly and only append message if position is long
+                    if position == "long" and stop_loss is not None and current_price <= stop_loss:
                         msg += " (Stop-Loss)"
-                    elif take_profit is not None and current_price >= take_profit:
+                    elif position == "long" and take_profit is not None and current_price >= take_profit:
                         msg += " (Take-Profit)"
                     position = None
+                # Amendment 3: Added else block to handle hold action explicitly
+                else:
+                    return_profit, msg_suffix = handle_second_strategy(action, current_price, 0)
+                    msg = f"HOLD {SYMBOL} at {current_price:.4f}{msg_suffix}"
 
                 signal = create_signal(action, current_price, latest_data, df, profit, total_profit, return_profit, total_return_profit, msg, order_id, "primary")
                 store_signal(signal)
@@ -1099,7 +1103,7 @@ def cleanup():
     if conn:
         conn.close()
         logger.info("Database connection closed")
-        upload_to_github(db_path, 're_bot.db')
+        upload_to_github(db_path, 'ren_bot.db')
         logger.info("Final database backup to GitHub completed")
 
 atexit.register(cleanup)
@@ -1122,5 +1126,3 @@ if __name__ == "__main__":
     asyncio.run(main())
 
     app.run(host='0.0.0.0', port=port, debug=False)
-
-

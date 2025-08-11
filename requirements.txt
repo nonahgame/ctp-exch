@@ -1,0 +1,10 @@
+flask==2.3.3
+pandas==2.2.2
+numpy==1.26.4
+ccxt==4.3.10
+pandas_ta==0.3.14b0
+python-telegram-bot==13.15
+urllib3==1.26.16
+requests==2.31.0
+python-dotenv==1.0.0
+gunicorn==22.0.0

@@ -533,14 +533,13 @@ def get_next_timeframe_boundary(current_time, timeframe_seconds):
     seconds_until_boundary = next_boundary - current_seconds
     return seconds_until_boundary
 
-# Trading bot
+# Trading bot function
 def trading_bot():
     global bot_active, position, buy_price, total_profit, pause_duration, pause_start, conn, stop_time
     bot = None
     try:
         bot = Bot(token=BOT_TOKEN)
         logger.info("Telegram bot initialized successfully")
-        # Send test message to verify Telegram setup
         test_signal = {
             'time': datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S"),
             'action': 'test',
@@ -566,7 +565,7 @@ def trading_bot():
             'macd': 0.0,
             'macd_signal': 0.0,
             'macd_hist': 0.0,
-            'lst_diff': 0.0,  # Added lst_diff
+            'lst_diff': 0.0,
             'message': f"Test message for {SYMBOL} bot startup",
             'timeframe': TIMEFRAME,
             'order_id': None,
@@ -612,7 +611,7 @@ def trading_bot():
         'macd': 0.0,
         'macd_signal': 0.0,
         'macd_hist': 0.0,
-        'lst_diff': 0.0,  # Added lst_diff
+        'lst_diff': 0.0,
         'message': f"Initializing bot for {SYMBOL}",
         'timeframe': TIMEFRAME,
         'order_id': None,
@@ -816,6 +815,9 @@ def trading_bot():
 
             prev_close = df['Close'].iloc[-2] if len(df) >= 2 else df['Close'].iloc[-1]
             percent_change = ((current_price - prev_close) / prev_close * 100) if prev_close != 0 else 0.0
+            # Amendment: Initialize stop_loss and take_profit to None to prevent undefined variable errors
+            stop_loss = None
+            take_profit = None
             action, stop_loss, take_profit, order_id = ai_decision(df, position=position, buy_price=buy_price)
 
             with bot_lock:
@@ -832,9 +834,10 @@ def trading_bot():
                     total_profit += profit
                     return_profit, msg_suffix = handle_second_strategy("sell", current_price, profit)
                     msg = f"SELL {SYMBOL} at {current_price:.4f}, Profit: {profit:.4f}, Order ID: {order_id}{msg_suffix}"
-                    if stop_loss and current_price <= stop_loss:
+                    # Amendment: Added checks for stop_loss and take_profit to be not None before comparison
+                    if stop_loss is not None and current_price <= stop_loss:
                         msg += " (Stop-Loss)"
-                    elif take_profit and current_price >= take_profit:
+                    elif take_profit is not None and current_price >= take_profit:
                         msg += " (Take-Profit)"
                     position = None
 
@@ -1119,4 +1122,5 @@ if __name__ == "__main__":
     asyncio.run(main())
 
     app.run(host='0.0.0.0', port=port, debug=False)
+
 

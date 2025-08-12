@@ -383,16 +383,22 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif close_price >= take_profit:
             logger.info("Take-profit triggered.")
             action = "sell"
-        elif (close_price < open_price and kdj_j > kdj_d and macd > macd_signal and ema1 > ema2 and kdj_j > 58 or rsi > 55): 
-            logger.info(f"Sell condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
+        elif close_price < open_price:
+            logger.info("Sell-logic triggered.")
             action = "sell"
-        elif (close_price < open_price and kdj_j < kdj_d and macd < macd_signal and kdj_j > 58 and ema1 > ema2):
-            logger.info(f"Sell condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
-            action = "sell"
+        #elif (close_price < open_price and kdj_j > kdj_d and macd > macd_signal and ema1 > ema2 and kdj_j > 58 or rsi > 55): 
+        #    logger.info(f"Sell condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
+        #    action = "sell"
+        #elif (close_price < open_price and kdj_j < kdj_d and macd < macd_signal and kdj_j > 58 and ema1 > ema2):
+        #    logger.info(f"Sell condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
+        #    action = "sell"
 
     if action == "hold" and position is None:
-        if (kdj_j < - 24.00 and ema1 < ema2 or kdj_j < kdj_d and macd < macd_signal and rsi < 19.00): # or (close_price > open_price and kdj_j > kdj_d or ema1 > ema2 and macd > macd_signal):
+        if (kdj_j < - 54.00 and ema1 < ema2 or kdj_j < kdj_d and macd < macd_signal and rsi < 19.00): # or (close_price > open_price and kdj_j > kdj_d or ema1 > ema2 and macd > macd_signal):
             logger.info(f"Buy condition met: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, close={close_price:.2f}, open={open_price:.2f}, ema1={ema1:.2f}, ema2={ema2:.2f}")
+            action = "buy"
+        elif close_price > open_price:
+            logger.info("Buy-logic triggered.")
             action = "buy"
         #elif (kdj_j > kdj_d and macd < macd_signal and kdj_j < 12.00 and rsi < 39.00 and ema1 < ema2): # 2
         #    logger.info(f"Buy condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
@@ -400,9 +406,9 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         #elif (kdj_j > kdj_d and macd > macd_signal and kdj_j < 12.00 and rsi < 39.00 and ema1 < ema2): # 2
         #    logger.info(f"Buy condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
         #    action = "buy"
-        elif (close_price < open_price and kdj_j > kdj_d and macd > macd_signal and kdj_j < 12.00 and rsi < 39.00 and ema1 < ema2 or ema1 > ema2): # 2
-            logger.info(f"Buy condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
-            action = "buy"
+        #elif (close_price < open_price and kdj_j > kdj_d and macd > macd_signal and kdj_j < 12.00 and rsi < 39.00 and ema1 < ema2 or ema1 > ema2): # 2
+        #    logger.info(f"Buy condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
+        #    action = "buy"
 
     if action == "buy" and position is not None:
         logger.debug("Prevented consecutive buy order.")

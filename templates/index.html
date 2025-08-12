@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>IFYBNG.NGN</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #d3d3d3;
+        }
+        h1, h2 {
+            color: #0000ff !important;
+        }
+        .signal {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .signal::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1;
+        }
+        .signal h2 {
+            color: #0000ff !important;
+            position: relative;
+            z-index: 2;
+        }
+        .signal li {
+            color: white !important;
+            position: relative;
+            z-index: 2;
+        }
+        .trades {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+            background-color: #000000;
+        }
+        .trades table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .trades th {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            background-color: #f2f2f2;
+            color: #0000ff !important;
+        }
+        .trades td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            white-space: nowrap;
+            color: white !important;
+        }
+        .trades td.action-buy {
+            color: green !important;
+        }
+        .trades td.action-sell {
+            color: red !important;
+        }
+        .trades td.negative {
+            color: red !important;
+        }
+        .trades td.non-negative {
+            color: green !important;
+        }
+        .trades {
+            overflow-x: auto;
+        }
+        .kdj-negative {
+            color: red !important;
+        }
+        .kdj-overbought {
+            color: green !important;
+        }
+        .kdj-neutral {
+            color: white !important;
+        }
+        .rsi-oversold {
+            color: red !important;
+        }
+        .rsi-overbought {
+            color: green !important;
+        }
+        .rsi-neutral {
+            color: white !important;
+        }
+        .diff-positive {
+            color: green !important;
+        }
+        .diff-negative {
+            color: red !important;
+        }
+        .macd-positive {
+            color: green !important;
+        }
+        .macd-negative {
+            color: red !important;
+        }
+        .lst-diff-positive {
+            color: green !important;
+        }
+        .lst-diff-negative {
+            color: red !important;
+        }
+        .error {
+            color: red !important;
+        }
+        @media (max-width: 768px) {
+            .trades table {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>MVS-BEN-TD</h1>
+    <p>Status: {{ status }}</p>
+    <p>Timeframe: {{ timeframe }}</p>
+    <p>Stop Time: {{ stop_time }}</p>
+    <p>Current Time: {{ current_time }}</p>
+    <div class="signal">
+        <h2>Latest Signal</h2>
+        {% if signal %}
+        <ul>
+            <li>Time: {{ signal.time }}</li>
+            <li>Timeframe: {{ signal.timeframe }}</li>
+            <li>Strategy: {{ signal.strategy }}</li>
+            <li>Message: {{ signal.message }}</li>
+            <li>Price: {{ signal.price | default(0) | round(4) }}</li>
+            <li>Open: {{ signal.open_price | default(0) | round(4) }}</li>
+            <li>Close: {{ signal.close_price | default(0) | round(4) }}</li>
+            <li>% Change: {{ signal.percent_change | default(0) | round(4) }}%</li>
+            <li>EMA1 (12): {{ signal.ema1 | default('N/A') | round(4) }}</li>
+            <li>EMA2 (26): {{ signal.ema2 | default('N/A') | round(4) }}</li>
+            <li>RSI (14): {{ signal.rsi | default('N/A') | round(4) }}</li>
+            <li>Diff: {{ signal.diff | default('N/A') | round(4) }}</li>
+            <li>KDJ K: {{ signal.k | default('N/A') | round(4) }}</li>
+            <li>KDJ D: {{ signal.d | default('N/A') | round(4) }}</li>
+            <li>KDJ J: {{ signal.j | default('N/A') | round(4) }}</li>
+            <li>MACD (DIF): {{ signal.macd | default('N/A') | round(4) }}</li>
+            <li>MACD Signal (DEA): {{ signal.macd_signal | default('N/A') | round(4) }}</li>
+            <li>MACD Hist: {{ signal.macd_hist | default('N/A') | round(4) }}</li>
+            <li>Lst Diff: {{ signal.lst_diff | default('N/A') | round(4) }}</li>
+            {% if signal.stop_loss is not none %}
+            <li>Stop-Loss: {{ signal.stop_loss | default(0) | round(4) }}</li>
+            {% endif %}
+            {% if signal.take_profit is not none %}
+            <li>Take-Profit: {{ signal.take_profit | default(0) | round(4) }}</li>
+            {% endif %}
+            <li>Total Profit: {{ signal.total_profit | default(0) | round(4) }}</li>
+            <li>Total Return Profit: {{ signal.total_return_profit | default(0) | round(4) }}</li>
+            {% if signal.action == "sell" %}
+            <li>Profit: {{ signal.profit | default(0) | round(4) }}</li>
+            {% endif %}
+            {% if signal.action == "sell" and signal.return_profit %}
+            <li>Return Profit: {{ signal.return_profit | default(0) | round(4) }}</li>
+            {% endif %}
+            {% if signal.order_id %}
+            <li>Order ID: {{ signal.order_id }}</li>
+            {% endif %}
+        </ul>
+        {% else %}
+        <p>No signal available.</p>
+        {% endif %}
+    </div>
+    <div class="trades">
+        <h2>Recent Trades</h2>
+        {% if trades %}
+        <table>
+            <tr>
+                <th>Time</th>
+                <th>Action</th>
+                <th>Strategy</th>
+                <th>Price</th>
+                <th>% Change</th>
+                <th>Profit</th>
+                <th>Total Profit</th>
+                <th>Return Profit</th>
+                <th>Total Return Profit</th>
+                <th>Order ID</th>
+                <th>Message</th>
+            </tr>
+            {% for trade in trades %}
+            <tr>
+                <td>{{ trade.time }}</td>
+                <td class="{% if trade.action == 'buy' %}action-buy{% elif trade.action == 'sell' %}action-sell{% endif %}">{{ trade.action }}</td>
+                <td>{{ trade.strategy }}</td>
+                <td>{{ trade.price | default(0) | round(4) }}</td>
+                <td class="{% if trade.percent_change|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.percent_change | default(0) | round(4) }}%</td>
+                <td class="{% if trade.profit is not none and trade.profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.profit | default('N/A') | round(4) }}</td>
+                <td class="{% if trade.total_profit is not none and trade.total_profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.total_profit | default('N/A') | round(4) }}</td>
+                <td class="{% if trade.return_profit is not none and trade.return_profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.return_profit | default('N/A') | round(4) }}</td>
+                <td class="{% if trade.total_return_profit is not none and trade.total_return_profit|float < 0 %}negative{% else %}non-negative{% endif %}">{{ trade.total_return_profit | default('N/A') | round(4) }}</td>
+                <td>{{ trade.order_id if trade.order_id else "N/A" }}</td>
+                <td>
+                    KDJ J: <span class="{% if trade.j|float < 0 %}kdj-negative{% elif trade.j|float > 65 %}kdj-overbought{% else %}kdj-neutral{% endif %}">{{ trade.j | default('N/A') | round(4) }}</span>,
+                    RSI: <span class="{% if trade.rsi|float < 15 %}rsi-oversold{% elif trade.rsi|float > 60 %}rsi-overbought{% else %}rsi-neutral{% endif %}">{{ trade.rsi | default('N/A') | round(4) }}</span>,
+                    Diff: <span class="{% if trade.diff|float > 0 %}diff-positive{% else %}diff-negative{% endif %}">{{ trade.diff | default('N/A') | round(4) }}</span>,
+                    MACD: <span class="{% if trade.macd|float > 0 %}macd-positive{% else %}macd-negative{% endif %}">{{ trade.macd | default('N/A') | round(4) }}</span>,
+                    Lst Diff: <span class="{% if trade.lst_diff|float > 0 %}lst-diff-positive{% else %}lst-diff-negative{% endif %}">{{ trade.lst_diff | default('N/A') | round(4) }}</span>,
+                    {{ trade.message }}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p>No trades available.</p>
+        {% endif %}
+    </div>
+    <!-- Amendment 6: Adjust auto-refresh to match timeframe -->
+    <script>
+        setTimeout(() => location.reload(), {{ timeframe_seconds * 1000 }});
+    </script>
+</body>
+</html>

@@ -343,7 +343,7 @@ def add_technical_indicators(df):
 def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAKE_PROFIT_PERCENT, position=None, buy_price=None):
     if df.empty or len(df) < 1:
         logger.warning("DataFrame is empty or too small for decision.")
-        return "hold", None, None, None
+        return "hold", None, None #, None
     
     latest = df.iloc[-1]
     close_price = latest['Close']
@@ -359,8 +359,8 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
     stop_loss = None
     take_profit = None
     action = "hold"
-    order_id = None
-
+    #order_id = None
+"""
     # Calculate quantity based on 11.00 USDT
     usdt_amount = AMOUNTS
     try:
@@ -373,6 +373,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
     except Exception as e:
         logger.error(f"Error calculating quantity: {e}")
         return "hold", None, None, None
+        """
     # Updated 10 08 2025
     if position == "long" and buy_price is not None:
         stop_loss = buy_price * (1 + stop_loss_percent / 100)
@@ -451,7 +452,9 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
 def handle_second_strategy(action, current_price, primary_profit):
     global tracking_enabled, last_sell_profit, tracking_has_buy, tracking_buy_price, total_return_profit
     return_profit = 0
-    msg = ""
+    #msg = ""
+    action = "hold"
+    order_id = None
     
     usdt_amount = AMOUNTS
     try:
@@ -464,7 +467,7 @@ def handle_second_strategy(action, current_price, primary_profit):
     except Exception as e:
         logger.error(f"Error calculating quantity: {e}")
         return "hold", None, None, None
-        
+    msg = ""    
     if action == "buy":
         if last_sell_profit > 0:
             tracking_has_buy = True

@@ -375,18 +375,19 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         return "hold", None, None, None
         """
     # Updated 10 08 2025
-    if position == "long" and buy_price is not None:
-        stop_loss = buy_price * (1 + stop_loss_percent / 100)
-        take_profit = buy_price * (1 + take_profit_percent / 100)
-        if close_price <= stop_loss:
-            logger.info("Stop-loss triggered.")
-            action = "sell"
-        elif close_price >= take_profit:
-            logger.info("Take-profit triggered.")
-            action = "sell"
-        elif close_price < open_price:
-            logger.info("Sell-logic triggered.")
-            action = "sell"
+if position == "long" and buy_price is not None:
+    p
+    stop_loss = buy_price * (1 + stop_loss_percent / 100)
+    take_profit = buy_price * (1 + take_profit_percent / 100)
+    if close_price <= stop_loss:
+        logger.info("Stop-loss triggered.")
+        action = "sell"
+    elif close_price >= take_profit:
+        logger.info("Take-profit triggered.")
+        action = "sell"
+    elif close_price < open_price:
+        logger.info("Sell-logic triggered.")
+        action = "sell"
         #elif (close_price < open_price and kdj_j > kdj_d and macd > macd_signal and ema1 > ema2 and kdj_j > 58 or rsi > 55): 
         #    logger.info(f"Sell condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
         #    action = "sell"

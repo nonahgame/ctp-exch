@@ -417,7 +417,11 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         logger.debug("Prevented sell order without open position.")
         action = "hold"
 
-    if action in ["buy", "sell"] and bot_active:
+    logger.debug(f"AI decision: action={action}, stop_loss={stop_loss}, take_profit={take_profit}")
+    return action, stop_loss, take_profit
+"""
+'''
+        #if action in ["buy", "sell"] and bot_active:
         try:
             if action == "buy":
                 order = exchange.create_market_buy_order(SYMBOL, quantity)
@@ -441,12 +445,26 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
 
     logger.debug(f"AI decision: action={action}, stop_loss={stop_loss}, take_profit={take_profit}, order_id={order_id}")
     return action, stop_loss, take_profit, order_id
-
+'''
+"""
 # Second strategy logic
 def handle_second_strategy(action, current_price, primary_profit):
     global tracking_enabled, last_sell_profit, tracking_has_buy, tracking_buy_price, total_return_profit
     return_profit = 0
     msg = ""
+    
+    usdt_amount = AMOUNTS
+    try:
+        quantity = usdt_amount / close_price
+        # Adjust quantity to meet Binance precision requirements
+        market = exchange.load_markets()[SYMBOL]
+        quantity_precision = market['precision']['amount']
+        quantity = exchange.amount_to_precision(SYMBOL, quantity)
+        logger.debug(f"Calculated quantity: {quantity} for {usdt_amount} USDT at price {close_price:.2f}")
+    except Exception as e:
+        logger.error(f"Error calculating quantity: {e}")
+        return "hold", None, None, None
+        
     if action == "buy":
         if last_sell_profit > 0:
             tracking_has_buy = True
@@ -471,7 +489,31 @@ def handle_second_strategy(action, current_price, primary_profit):
         else:
             tracking_enabled = False
         msg = " (Paused Sell2)"
-    return return_profit, msg
+    #return return_profit, msg
+    if action in ["buy", "sell"] and bot_active:
+        try:
+            if action == "buy":
+                order = exchange.create_market_buy_order(SYMBOL, quantity)
+                order_id = str(order['id'])
+                logger.info(f"Placed market buy order: {order_id}, quantity={quantity}, price={close_price:.2f}")
+            elif action == "sell":
+                balance = exchange.fetch_balance()
+                asset_symbol = SYMBOL.split("/")[0]
+                available_amount = balance[asset_symbol]['free']
+                quantity = exchange.amount_to_precision(SYMBOL, available_amount)
+                if float(quantity) <= 0:
+                    logger.warning("No asset balance available to sell.")
+                    return "hold", None, None, None
+                order = exchange.create_market_sell_order(SYMBOL, quantity)
+                order_id = str(order['id'])
+                logger.info(f"Placed market sell order: {order_id}, quantity={quantity}, price={close_price:.2f}")
+        except Exception as e:
+            logger.error(f"Error placing market order: {e}")
+            action = "hold"
+            order_id = None
+
+    logger.debug(f"2nd decision: action={action}, return_profit={return_profit}, msg={msg}, order_id={order_id}")
+    return action, return_profit, msg, order_id
 
 # Telegram message sending
 def send_telegram_message(signal, bot_token, chat_id, retries=3, delay=5):

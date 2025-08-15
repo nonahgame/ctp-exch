@@ -361,7 +361,6 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
     action = "hold"
     
     if position == "long" and buy_price is not None:
-        p
         stop_loss = buy_price * (1 + stop_loss_percent / 100)
         take_profit = buy_price * (1 + take_profit_percent / 100)
         if close_price <= stop_loss:
@@ -398,6 +397,7 @@ def handle_second_strategy(action, current_price, primary_profit):
     global tracking_enabled, last_sell_profit, tracking_has_buy, tracking_buy_price, total_return_profit
     return_profit = 0
     #msg = ""
+    stop_loss = None
     action = "hold"
     order_id = None
     
@@ -415,6 +415,7 @@ def handle_second_strategy(action, current_price, primary_profit):
     msg = ""    
     if action == "buy":
         if last_sell_profit > 0:
+            stop_loss = buy_price * (1 + stop_loss_percent / 100)
             tracking_has_buy = True
             tracking_buy_price = current_price
             msg = ""
@@ -458,10 +459,11 @@ def handle_second_strategy(action, current_price, primary_profit):
         except Exception as e:
             logger.error(f"Error placing market order: {e}")
             action = "hold"
+            stop_loss = None
             order_id = None
 
     logger.debug(f"2nd decision: action={action}, return_profit={return_profit}, msg={msg}, order_id={order_id}")
-    return action, return_profit, msg, order_id
+    return action, stop_loss, return_profit, msg, order_id
 
 # Telegram message sending
 def send_telegram_message(signal, bot_token, chat_id, retries=3, delay=5):

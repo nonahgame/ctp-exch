@@ -359,58 +359,29 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
     stop_loss = None
     take_profit = None
     action = "hold"
-    #order_id = None
-"""
-    # Calculate quantity based on 11.00 USDT
-    usdt_amount = AMOUNTS
-    try:
-        quantity = usdt_amount / close_price
-        # Adjust quantity to meet Binance precision requirements
-        market = exchange.load_markets()[SYMBOL]
-        quantity_precision = market['precision']['amount']
-        quantity = exchange.amount_to_precision(SYMBOL, quantity)
-        logger.debug(f"Calculated quantity: {quantity} for {usdt_amount} USDT at price {close_price:.2f}")
-    except Exception as e:
-        logger.error(f"Error calculating quantity: {e}")
-        return "hold", None, None, None
-        """
-    # Updated 10 08 2025
-if position == "long" and buy_price is not None:
-    p
-    stop_loss = buy_price * (1 + stop_loss_percent / 100)
-    take_profit = buy_price * (1 + take_profit_percent / 100)
-    if close_price <= stop_loss:
-        logger.info("Stop-loss triggered.")
-        action = "sell"
-    elif close_price >= take_profit:
-        logger.info("Take-profit triggered.")
-        action = "sell"
-    elif close_price < open_price:
-        logger.info("Sell-logic triggered.")
-        action = "sell"
-        #elif (close_price < open_price and kdj_j > kdj_d and macd > macd_signal and ema1 > ema2 and kdj_j > 58 or rsi > 55): 
-        #    logger.info(f"Sell condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
-        #    action = "sell"
-        #elif (close_price < open_price and kdj_j < kdj_d and macd < macd_signal and kdj_j > 58 and ema1 > ema2):
-        #    logger.info(f"Sell condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
-        #    action = "sell"
+    
+    if position == "long" and buy_price is not None:
+        p
+        stop_loss = buy_price * (1 + stop_loss_percent / 100)
+        take_profit = buy_price * (1 + take_profit_percent / 100)
+        if close_price <= stop_loss:
+            logger.info("Stop-loss triggered.")
+            action = "sell"
+        elif close_price >= take_profit:
+            logger.info("Take-profit triggered.")
+            action = "sell"
+        elif close_price < open_price:
+            logger.info("Sell-logic triggered.")
+            action = "sell"
+        
 
     if action == "hold" and position is None:
         if (kdj_j < - 54.00 and ema1 < ema2 or kdj_j < kdj_d and macd < macd_signal and rsi < 19.00): # or (close_price > open_price and kdj_j > kdj_d or ema1 > ema2 and macd > macd_signal):
             logger.info(f"Buy condition met: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, close={close_price:.2f}, open={open_price:.2f}, ema1={ema1:.2f}, ema2={ema2:.2f}")
-            action = "buy"
+                action = "buy"
         elif (close_price > open_price and kdj_j > kdj_d and ema1 > ema2):
             logger.info("Buy-logic triggered.")
             action = "buy"
-        #elif (kdj_j > kdj_d and macd < macd_signal and kdj_j < 12.00 and rsi < 39.00 and ema1 < ema2): # 2
-        #    logger.info(f"Buy condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
-        #    action = "buy"
-        #elif (kdj_j > kdj_d and macd > macd_signal and kdj_j < 12.00 and rsi < 39.00 and ema1 < ema2): # 2
-        #    logger.info(f"Buy condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
-        #    action = "buy"
-        #elif (close_price < open_price and kdj_j > kdj_d and macd > macd_signal and kdj_j < 12.00 and rsi < 39.00 and ema1 < ema2 or ema1 > ema2): # 2
-        #    logger.info(f"Buy condition met: close={close_price:.2f}, open={open_price:.2f}, kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, DIF={macd:.2f}, DEA={macd_signal:.2f}")
-        #    action = "buy"
 
     if action == "buy" and position is not None:
         logger.debug("Prevented consecutive buy order.")
@@ -419,36 +390,9 @@ if position == "long" and buy_price is not None:
         logger.debug("Prevented sell order without open position.")
         action = "hold"
 
-logger.debug(f"AI decision: action={action}, stop_loss={stop_loss}, take_profit={take_profit}")
-return action, stop_loss, take_profit
-"""
-'''
-        #if action in ["buy", "sell"] and bot_active:
-        try:
-            if action == "buy":
-                order = exchange.create_market_buy_order(SYMBOL, quantity)
-                order_id = str(order['id'])
-                logger.info(f"Placed market buy order: {order_id}, quantity={quantity}, price={close_price:.2f}")
-            elif action == "sell":
-                balance = exchange.fetch_balance()
-                asset_symbol = SYMBOL.split("/")[0]
-                available_amount = balance[asset_symbol]['free']
-                quantity = exchange.amount_to_precision(SYMBOL, available_amount)
-                if float(quantity) <= 0:
-                    logger.warning("No asset balance available to sell.")
-                    return "hold", None, None, None
-                order = exchange.create_market_sell_order(SYMBOL, quantity)
-                order_id = str(order['id'])
-                logger.info(f"Placed market sell order: {order_id}, quantity={quantity}, price={close_price:.2f}")
-        except Exception as e:
-            logger.error(f"Error placing market order: {e}")
-            action = "hold"
-            order_id = None
+    logger.debug(f"AI decision: action={action}, stop_loss={stop_loss}, take_profit={take_profit}")
+    return action, stop_loss, take_profit
 
-    logger.debug(f"AI decision: action={action}, stop_loss={stop_loss}, take_profit={take_profit}, order_id={order_id}")
-    return action, stop_loss, take_profit, order_id
-'''
-"""
 # Second strategy logic
 def handle_second_strategy(action, current_price, primary_profit):
     global tracking_enabled, last_sell_profit, tracking_has_buy, tracking_buy_price, total_return_profit

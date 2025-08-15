@@ -419,8 +419,8 @@ if position == "long" and buy_price is not None:
         logger.debug("Prevented sell order without open position.")
         action = "hold"
 
-        logger.debug(f"AI decision: action={action}, stop_loss={stop_loss}, take_profit={take_profit}")
-        return action, stop_loss, take_profit
+    logger.debug(f"AI decision: action={action}, stop_loss={stop_loss}, take_profit={take_profit}")
+    return action, stop_loss, take_profit
 """
 '''
         #if action in ["buy", "sell"] and bot_active:

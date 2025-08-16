@@ -1,4 +1,4 @@
-# app.py btc pt 4000
+# app.py btc pt 4000 & fd
 import os
 import pandas as pd
 import numpy as np

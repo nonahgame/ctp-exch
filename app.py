@@ -385,7 +385,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif close_price >= take_profit:
             logger.info("Take-profit triggered.")
             action = "sell"
-        elif close_price < open_price:
+        elif macd < macd_signal:
             logger.info("Sell-logic triggered.")
             action = "sell"
 
@@ -393,7 +393,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         if (kdj_j < - 54.00 and ema1 < ema2 or kdj_j < kdj_d and macd < macd_signal and rsi < 19.00):
             logger.info(f"Buy condition met: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, close={close_price:.2f}, open={open_price:.2f}, ema1={ema1:.2f}, ema2={ema2:.2f}")
             action = "buy"
-        elif (close_price > open_price and kdj_j > kdj_d and ema1 > ema2):
+        elif (macd > macd_signal and ema1 > ema2): # and kdj_j > kdj_d 
             logger.info("Buy-logic triggered.")
             action = "buy"
 

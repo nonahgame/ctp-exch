@@ -125,14 +125,15 @@
 </head>
 <body>
     <h1>M-Benjamin-Net</h1>
+    <h1>ETH/USDT 4000</h1>
     <p>Status: {{ status }}</p>
     <p>Timeframe: {{ timeframe }}</p>
     <p>Stop Time: {{ stop_time }}</p>
     <p>Current Time: {{ current_time }}</p>
     <div class="signal">
         <h2>Latest Signal</h2>
-        <h2>buy=macd(dif) less macd(dea) & ema1 & ema2 the same</h2>
-        <h2>sell Only macd(dif) & macd(ea) opposite</h2>
+        <h2>buy=macd(dif) less (dea) & ema1 '<' ema2</h2>
+        <h2>sell Only macd(dif) & (dea) opposite</h2>
         {% if signal %}
         <ul>
             <li>Time: {{ signal.time }}</li>

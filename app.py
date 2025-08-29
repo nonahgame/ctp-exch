@@ -386,7 +386,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif close_price >= take_profit:
             logger.info("Take-profit triggered.")
             action = "sell"
-        elif (macd < macd_signal and lst_diff < - 8.00):
+        elif (macd < macd_signal and lst_diff < - 1.70):
             logger.info("Sell-logic triggered.")
             action = "sell"
         elif (lst_diff < - 8.00 and kdj_j > 75.00): # and kdj_j > kdj_d 

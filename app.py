@@ -334,6 +334,9 @@ def add_technical_indicators(df):
         df['macd_signal'] = macd['MACDs_12_26_9']  # DEA
         df['macd_hist'] = macd['MACDh_12_26_9']  # MACD Histogram
         df['diff'] = df['Close'] - df['Open']
+        df['diff1e'] = df['ema1'] - df['ema2']
+        df['diff2m'] = df['macd'] - df['macd_signal']
+        df['diff3k'] = df['j'] - df['d']
         df['lst_diff'] = df['ema1'].shift(1) - df['ema1']
         logger.debug(f"Technical indicators calculated: {df.iloc[-1][['ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'macd', 'macd_signal', 'macd_hist', 'diff', 'lst_diff']].to_dict()}")
         return df

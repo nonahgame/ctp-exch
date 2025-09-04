@@ -1,4 +1,4 @@
-# app.py sym pt 4000 & fd
+# app.py sym pt 4000 & fd 2nd
 import os
 import pandas as pd
 import numpy as np
@@ -190,8 +190,23 @@ def keep_alive():
             logger.error(f"Keep-alive error: {e}")
             time.sleep(60)
 
+# Periodic database backup to GitHub
+def periodic_db_backup():
+    while True:
+        try:
+            with db_lock:
+                if os.path.exists(db_path) and conn is not None:
+                    logger.info("Performing periodic database backup to GitHub")
+                    upload_to_github(db_path, 'rnn_bot.bd')
+                else:
+                    logger.warning("Database file or connection not available for periodic backup")
+            time.sleep(300)  # Sleep for 5 minutes (300 seconds)
+        except Exception as e:
+            logger.error(f"Error during periodic database backup: {e}")
+            time.sleep(60)  # Retry after 1 minute if error occurs
+
 # SQLite database setup with enhanced error handling and column creation
-def setup_database(force_attempt=False):
+def setup_database(first_attempt=False):
     global conn
     with db_lock:
         for attempt in range(3):
@@ -218,7 +233,7 @@ def setup_database(force_attempt=False):
                         conn = sqlite3.connect(db_path, check_same_thread=False)
                         logger.info(f"Created new database file at {db_path} after corruption")
 
-                # Attempt to download from GitHub if no valid local database
+                # Attempt to download from GitHub if not first attempt
                 if not first_attempt:
                     logger.info(f"Attempting to download database from GitHub: {GITHUB_API_URL}")
                     if download_from_github('rnn_bot.bd', db_path):
@@ -1114,7 +1129,7 @@ def store_signal(signal):
             try:
                 if conn is None:
                     logger.warning("Database connection is None. Attempting to reinitialize.")
-                    if not setup_database():
+                    if not setup_database(first_attempt=True):
                         logger.error("Failed to reinitialize database for signal storage")
                         return
                 c = conn.cursor()
@@ -1148,7 +1163,7 @@ def store_signal(signal):
                 logger.error(f"Error storing signal after {elapsed:.3f}s (attempt {attempt + 1}/3): {e}")
                 if "no column named" in str(e).lower():
                     logger.info("Missing column detected. Attempting to reinitialize database.")
-                    if not setup_database():
+                    if not setup_database(first_attempt=True):
                         logger.error("Failed to reinitialize database to add missing column")
                         return
                 else:
@@ -1166,7 +1181,7 @@ def store_signal(signal):
 
         # After 3 failed attempts, force create a new database
         logger.error("Failed to store signal after 3 attempts. Forcing creation of new database.")
-        if setup_database():
+        if setup_database(first_attempt=True):
             try:
                 c = conn.cursor()
                 c.execute('''
@@ -1207,7 +1222,7 @@ def get_performance():
         try:
             if conn is None:
                 logger.warning("Database connection is None. Attempting to reinitialize.")
-                if not setup_database():
+                if not setup_database(first_attempt=True):
                     logger.error("Failed to reinitialize database for performance")
                     return "Database not initialized. Please try again later."
             c = conn.cursor()
@@ -1251,7 +1266,7 @@ def get_trade_counts():
         try:
             if conn is None:
                 logger.warning("Database connection is None. Attempting to reinitialize.")
-                if not setup_database():
+                if not setup_database(first_attempt=True):
                     logger.error("Failed to reinitialize database for trade counts")
                     return "Database not initialized. Please try again later."
             c = conn.cursor()
@@ -1305,7 +1320,7 @@ def index():
         try:
             if conn is None:
                 logger.warning("Database connection is None in index route. Attempting to reinitialize.")
-                if not setup_database():
+                if not setup_database(first_attempt=True):
                     logger.error("Failed to reinitialize database for index route")
                     stop_time_str = stop_time.strftime("%Y-%m-%d %H:%M:%S") if stop_time else "N/A"
                     current_time = datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")
@@ -1381,7 +1396,7 @@ def trades():
         try:
             if conn is None:
                 logger.warning("Database connection is None in trades route. Attempting to reinitialize.")
-                if not setup_database():
+                if not setup_database(first_attempt=True):
                     logger.error("Failed to reinitialize database for trades route")
                     return jsonify({"error": "Database not initialized. Please try again later."}), 503
             c = conn.cursor()
@@ -1417,6 +1432,11 @@ if bot_thread is None or not bot_thread.is_alive():
 keep_alive_thread = threading.Thread(target=keep_alive, daemon=True)
 keep_alive_thread.start()
 logger.info("Keep-alive thread started")
+
+# Start periodic database backup thread
+db_backup_thread = threading.Thread(target=periodic_db_backup, daemon=True)
+db_backup_thread.start()
+logger.info("Database backup thread started")
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 4000))

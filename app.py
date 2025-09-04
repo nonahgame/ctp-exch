@@ -451,6 +451,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
     ema2 = latest['ema2'] if not pd.isna(latest['ema2']) else 0.0
     macd = latest['macd'] if not pd.isna(latest['macd']) else 0.0  # DIF
     macd_signal = latest['macd_signal'] if not pd.isna(latest['macd_signal']) else 0.0  # DEA
+    macd_hist = latest['macd_hist'] if not pd.isna(latest['macd_hist']) else 0.0  
     rsi = latest['rsi'] if not pd.isna(latest['rsi']) else 0.0
     lst_diff = latest['lst_diff'] if not pd.isna(latest['lst_diff']) else 0.0
     stop_loss = None
@@ -482,7 +483,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif close_price >= take_profit:
             logger.info("Take-profit triggered.")
             action = "sell"
-        elif (kdj_j > kdj_d and kdj_j > 60.00 and (macd - macd_signal) > 1.00):
+        elif (kdj_j > kdj_d and kdj_j > 70.00 and macd_hist > 1.00):
             logger.info(
             f"Sell triggered: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "
             f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"
@@ -491,7 +492,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
 
     # BUY conditions (only when flat / no position)
     if action == "hold" and position is None:
-        if (kdj_j < kdj_d and kdj_j < 1.00 and (macd - macd_signal) < -0.01):
+        if (kdj_j < kdj_d and kdj_j < - 5.00 and macd_hist < -0.01):
             logger.info(
             f"Buy triggered: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "
             f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"

@@ -190,8 +190,8 @@ def keep_alive():
             logger.error(f"Keep-alive error: {e}")
             time.sleep(60)
 
-# SQLite database setup
-def setup_database():
+# SQLite database setup with enhanced error handling and column creation
+def setup_database(force_attempt=False):
     global conn
     with db_lock:
         for attempt in range(3):
@@ -201,7 +201,6 @@ def setup_database():
                 # Check if database file exists, create it if it doesn't
                 if not os.path.exists(db_path):
                     logger.info(f"Database file {db_path} does not exist. Creating new database.")
-                    # Connect to database (this creates the file if it doesn't exist)
                     conn = sqlite3.connect(db_path, check_same_thread=False)
                     logger.info(f"Created new database file at {db_path}")
                 else:
@@ -216,30 +215,29 @@ def setup_database():
                         logger.error(f"Existing database at {db_path} is corrupted: {e}")
                         os.remove(db_path)
                         logger.info(f"Removed corrupted database file at {db_path}")
-                        # Create new database file
                         conn = sqlite3.connect(db_path, check_same_thread=False)
                         logger.info(f"Created new database file at {db_path} after corruption")
 
                 # Attempt to download from GitHub if no valid local database
-                logger.info(f"Attempting to download database from GitHub: {GITHUB_API_URL}")
-                if download_from_github('rnn_bot.bd', db_path):
-                    logger.info(f"Downloaded database from GitHub to {db_path}")
-                    try:
-                        test_conn = sqlite3.connect(db_path, check_same_thread=False)
-                        c = test_conn.cursor()
-                        c.execute("SELECT name FROM sqlite_master WHERE type='table';")
-                        tables = c.fetchall()
-                        logger.info(f"Downloaded database is valid, tables: {tables}")
-                        test_conn.close()
-                    except sqlite3.DatabaseError as e:
-                        logger.error(f"Downloaded database is corrupted: {e}")
-                        os.remove(db_path)
-                        logger.info(f"Removed invalid downloaded database file at {db_path}")
-                        # Create new database file
-                        conn = sqlite3.connect(db_path, check_same_thread=False)
-                        logger.info(f"Created new database file at {db_path} after failed download")
+                if not first_attempt:
+                    logger.info(f"Attempting to download database from GitHub: {GITHUB_API_URL}")
+                    if download_from_github('rnn_bot.bd', db_path):
+                        logger.info(f"Downloaded database from GitHub to {db_path}")
+                        try:
+                            test_conn = sqlite3.connect(db_path, check_same_thread=False)
+                            c = test_conn.cursor()
+                            c.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                            tables = c.fetchall()
+                            logger.info(f"Downloaded database is valid, tables: {tables}")
+                            test_conn.close()
+                        except sqlite3.DatabaseError as e:
+                            logger.error(f"Downloaded database is corrupted: {e}")
+                            os.remove(db_path)
+                            logger.info(f"Removed invalid downloaded database file at {db_path}")
+                            conn = sqlite3.connect(db_path, check_same_thread=False)
+                            logger.info(f"Created new database file at {db_path} after failed download")
 
-                # Connect to the database (either newly created or existing)
+                # Connect to the database
                 if conn is None:
                     conn = sqlite3.connect(db_path, check_same_thread=False)
                 logger.info(f"Connected to database at {db_path}")
@@ -248,6 +246,7 @@ def setup_database():
                 # Check if trades table exists
                 c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='trades';")
                 if not c.fetchone():
+                    logger.info("Trades table does not exist. Creating new trades table.")
                     c.execute('''
                         CREATE TABLE trades (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -289,32 +288,138 @@ def setup_database():
                         )
                     ''')
                     logger.info("Created new trades table")
+                    conn.commit()
+
+                # Check and add missing columns
                 c.execute("PRAGMA table_info(trades);")
-                columns = [col[1] for col in c.fetchall()]
-                for col in ['return_profit', 'total_return_profit', 'diff', 'macd', 'macd_signal', 'macd_hist', 'lst_diff', 'message', 'timeframe', 'order_id', 'strategy']:
-                    if col not in columns:
-                        c.execute(f"ALTER TABLE trades ADD COLUMN {col} {'REAL' if col in ['return_profit', 'total_return_profit', 'diff', 'macd', 'macd_signal', 'macd_hist', 'lst_diff'] else 'TEXT'};")
+                existing_columns = {col[1] for col in c.fetchall()}
+                required_columns = {
+                    'time': 'TEXT',
+                    'action': 'TEXT',
+                    'symbol': 'TEXT',
+                    'price': 'REAL',
+                    'open_price': 'REAL',
+                    'close_price': 'REAL',
+                    'volume': 'REAL',
+                    'percent_change': 'REAL',
+                    'stop_loss': 'REAL',
+                    'take_profit': 'REAL',
+                    'profit': 'REAL',
+                    'total_profit': 'REAL',
+                    'return_profit': 'REAL',
+                    'total_return_profit': 'REAL',
+                    'ema1': 'REAL',
+                    'ema2': 'REAL',
+                    'rsi': 'REAL',
+                    'k': 'REAL',
+                    'd': 'REAL',
+                    'j': 'REAL',
+                    'diff': 'REAL',
+                    'macd': 'REAL',
+                    'macd_signal': 'REAL',
+                    'macd_hist': 'REAL',
+                    'lst_diff': 'REAL',
+                    'supertrend': 'REAL',
+                    'supertrend_trend': 'INTEGER',
+                    'stoch_rsi': 'REAL',
+                    'stoch_k': 'REAL',
+                    'stoch_d': 'REAL',
+                    'obv': 'REAL',
+                    'message': 'TEXT',
+                    'timeframe': 'TEXT',
+                    'order_id': 'TEXT',
+                    'strategy': 'TEXT'
+                }
+
+                for col, col_type in required_columns.items():
+                    if col not in existing_columns:
+                        logger.info(f"Column {col} missing in trades table. Adding column with type {col_type}.")
+                        c.execute(f"ALTER TABLE trades ADD COLUMN {col} {col_type};")
+                        conn.commit()
                         logger.info(f"Added column {col} to trades table")
-                conn.commit()
+
                 logger.info(f"Database initialized successfully at {db_path}, size: {os.path.getsize(db_path)} bytes")
                 upload_to_github(db_path, 'rnn_bot.bd')
                 return True
+
             except sqlite3.Error as e:
                 logger.error(f"SQLite error during database setup (attempt {attempt + 1}/3): {e}", exc_info=True)
-                conn = None
+                if conn:
+                    conn.close()
+                    conn = None
                 time.sleep(2)
             except Exception as e:
                 logger.error(f"Unexpected error during database setup (attempt {attempt + 1}/3): {e}", exc_info=True)
-                conn = None
+                if conn:
+                    conn.close()
+                    conn = None
                 time.sleep(2)
-        logger.error("Failed to initialize database after 3 attempts")
-        conn = None
-        return False
+
+        # After 3 failed attempts, force create a new database
+        logger.error("Failed to initialize database after 3 attempts. Forcing creation of new database.")
+        try:
+            if os.path.exists(db_path):
+                os.remove(db_path)
+                logger.info(f"Removed existing database file at {db_path} to force new creation")
+            conn = sqlite3.connect(db_path, check_same_thread=False)
+            c = conn.cursor()
+            c.execute('''
+                CREATE TABLE trades (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    time TEXT,
+                    action TEXT,
+                    symbol TEXT,
+                    price REAL,
+                    open_price REAL,
+                    close_price REAL,
+                    volume REAL,
+                    percent_change REAL,
+                    stop_loss REAL,
+                    take_profit REAL,
+                    profit REAL,
+                    total_profit REAL,
+                    return_profit REAL,
+                    total_return_profit REAL,
+                    ema1 REAL,
+                    ema2 REAL,
+                    rsi REAL,
+                    k REAL,
+                    d REAL,
+                    j REAL,
+                    diff REAL,
+                    macd REAL,
+                    macd_signal REAL,
+                    macd_hist REAL,
+                    lst_diff REAL,
+                    supertrend REAL,
+                    supertrend_trend INTEGER,
+                    stoch_rsi REAL,
+                    stoch_k REAL,
+                    stoch_d REAL,
+                    obv REAL,
+                    message TEXT,
+                    timeframe TEXT,
+                    order_id TEXT,
+                    strategy TEXT
+                )
+            ''')
+            conn.commit()
+            logger.info(f"Forced creation of new database and trades table at {db_path}")
+            upload_to_github(db_path, 'rnn_bot.bd')
+            return True
+        except Exception as e:
+            logger.error(f"Failed to force create new database: {e}", exc_info=True)
+            if conn:
+                conn.close()
+                conn = None
+            return False
 
 # Initialize database
 logger.info("Initializing database in main thread")
-if not setup_database():
-    logger.error("Failed to initialize database in main thread. Flask routes may fail.")
+if not setup_database(first_attempt=True):
+    logger.error("Failed to initialize database in main thread. Forcing new database creation.")
+    if not setup_database(first_attempt=True):
+        logger.critical("Failed to force create new database. Flask routes may fail.")
 
 # Fetch price data
 def get_simulated_price(symbol=SYMBOL, exchange=exchange, timeframe=TIMEFRAME, retries=3, delay=5):
@@ -350,14 +455,12 @@ def get_simulated_price(symbol=SYMBOL, exchange=exchange, timeframe=TIMEFRAME, r
 def add_technical_indicators(df):
     start_time = time.time()
     try:
-        # Optimize DataFrame operations by avoiding redundant calculations
-        df = df.copy()  # Create a copy to avoid modifying the original
-        df['Close'] = df['Close'].ffill()  # Fill missing Close prices
-        df['High'] = df['High'].ffill()  # Fill missing High prices
-        df['Low'] = df['Low'].ffill()  # Fill missing Low prices
-        df['Volume'] = df['Volume'].ffill()  # Fill missing Volume
+        df = df.copy()
+        df['Close'] = df['Close'].ffill()
+        df['High'] = df['High'].ffill()
+        df['Low'] = df['Low'].ffill()
+        df['Volume'] = df['Volume'].ffill()
 
-        # Original indicators
         df['ema1'] = ta.ema(df['Close'], length=12)
         df['ema2'] = ta.ema(df['Close'], length=26)
         df['rsi'] = ta.rsi(df['Close'], length=14)
@@ -372,7 +475,6 @@ def add_technical_indicators(df):
         df['diff'] = df['Close'] - df['Open']
         df['lst_diff'] = df['ema1'].shift(1) - df['ema1']
 
-        # Supertrend calculation (optimized)
         st_length = 10
         st_multiplier = 3.0
         high_low = df['High'] - df['Low']
@@ -386,7 +488,6 @@ def add_technical_indicators(df):
         final_upperband = basic_upperband.copy()
         final_lowerband = basic_lowerband.copy()
 
-        # Vectorized Supertrend calculation
         for i in range(1, len(df)):
             if (basic_upperband.iloc[i] < final_upperband.iloc[i-1]) or (df['Close'].iloc[i-1] > final_upperband.iloc[i-1]):
                 final_upperband.iloc[i] = basic_upperband.iloc[i]
@@ -398,19 +499,15 @@ def add_technical_indicators(df):
                 final_lowerband.iloc[i] = final_lowerband.iloc[i-1]
 
         supertrend = final_upperband.where(df['Close'] <= final_upperband, final_lowerband)
-        # Keep supertrend_trend as boolean for signal calculation
         supertrend_trend = df['Close'] > final_upperband.shift()
-        supertrend_trend = supertrend_trend.fillna(True)  # Default to True for initial values
+        supertrend_trend = supertrend_trend.fillna(True)
         df['supertrend'] = supertrend
-        # Store supertrend_trend as int (0/1) only in the final DataFrame
-        df['supertrend_trend'] = supertrend_trend.astype(int)  # 1 for uptrend, 0 for downtrend
-        # Calculate supertrend_signal using boolean operations
+        df['supertrend_trend'] = supertrend_trend.astype(int)
         df['supertrend_signal'] = np.where(
             supertrend_trend & ~supertrend_trend.shift().fillna(True), 'buy',
             np.where(~supertrend_trend & supertrend_trend.shift().fillna(True), 'sell', None)
         )
 
-        # Stochastic RSI
         stoch_rsi_len = 14
         stoch_k_len = 3
         stoch_d_len = 3
@@ -422,7 +519,6 @@ def add_technical_indicators(df):
         df['stoch_k'] = stochrsi.rolling(stoch_k_len, min_periods=1).mean() * 100
         df['stoch_d'] = df['stoch_k'].rolling(stoch_d_len, min_periods=1).mean()
 
-        # OBV
         close_diff = df['Close'].diff().fillna(0)
         direction = np.sign(close_diff)
         df['obv'] = (direction * df['Volume']).fillna(0).cumsum()
@@ -449,9 +545,9 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
     kdj_j = latest['j'] if not pd.isna(latest['j']) else 0.0
     ema1 = latest['ema1'] if not pd.isna(latest['ema1']) else 0.0
     ema2 = latest['ema2'] if not pd.isna(latest['ema2']) else 0.0
-    macd = latest['macd'] if not pd.isna(latest['macd']) else 0.0  # DIF
-    macd_signal = latest['macd_signal'] if not pd.isna(latest['macd_signal']) else 0.0  # DEA
-    macd_hist = latest['macd_hist'] if not pd.isna(latest['macd_hist']) else 0.0  
+    macd = latest['macd'] if not pd.isna(latest['macd']) else 0.0
+    macd_signal = latest['macd_signal'] if not pd.isna(latest['macd_signal']) else 0.0
+    macd_hist = latest['macd_hist'] if not pd.isna(latest['macd_hist']) else 0.0
     rsi = latest['rsi'] if not pd.isna(latest['rsi']) else 0.0
     lst_diff = latest['lst_diff'] if not pd.isna(latest['lst_diff']) else 0.0
     stop_loss = None
@@ -459,11 +555,9 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
     action = "hold"
     order_id = None
 
-    # Calculate quantity based on 11.00 USDT
     usdt_amount = AMOUNTS
     try:
         quantity = usdt_amount / close_price
-        # Adjust quantity to meet Binance precision requirements
         market = exchange.load_markets()[SYMBOL]
         quantity_precision = market['precision']['amount']
         quantity = exchange.amount_to_precision(SYMBOL, quantity)
@@ -471,8 +565,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
     except Exception as e:
         logger.error(f"Error calculating quantity: {e}")
         return "hold", None, None, None
-    ## # --- Market Logic ---
-    # SELL conditions (only when in long position)
+
     if position == "long" and buy_price is not None:
         stop_loss = buy_price * (1 + stop_loss_percent / 100)
         take_profit = buy_price * (1 + take_profit_percent / 100)
@@ -485,28 +578,25 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
             action = "sell"
         elif (kdj_j > kdj_d and kdj_j > 70.00 and macd_hist > 1.00):
             logger.info(
-            f"Sell triggered: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "
-            f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"
+                f"Sell triggered: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "
+                f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"
             )
             action = "sell"
 
-    # BUY conditions (only when flat / no position)
     if action == "hold" and position is None:
-        if (kdj_j < kdj_d and kdj_j < - 5.00 and macd_hist < -0.01):
+        if (kdj_j < kdj_d and kdj_j < -5.00 and macd_hist < -0.01):
             logger.info(
-            f"Buy triggered: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "
-            f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"
+                f"Buy triggered: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "
+                f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"
             )
             action = "buy"
 
-    # Guards to prevent bad flips
     if action == "buy" and position is not None:
         logger.debug("Prevented consecutive buy order.")
         action = "hold"
     if action == "sell" and position is None:
         logger.debug("Prevented sell order without open position.")
         action = "hold"
-    # end 
 
     if action in ["buy", "sell"] and bot_active:
         try:
@@ -633,7 +723,6 @@ def trading_bot():
     try:
         bot = Bot(token=BOT_TOKEN)
         logger.info("Telegram bot initialized successfully")
-        # Send test message to verify Telegram setup
         test_signal = {
             'time': datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S"),
             'action': 'test',
@@ -1016,45 +1105,100 @@ def create_signal(action, current_price, latest_data, df, profit, total_profit, 
         'order_id': order_id,
         'strategy': strategy
     }
+
 def store_signal(signal):
     global conn
     start_time = time.time()
     with db_lock:
-        try:
-            if conn is None:
-                logger.warning("Database connection is None. Attempting to reinitialize.")
-                if not setup_database():
-                    logger.error("Failed to reinitialize database for signal storage")
-                    return
-            c = conn.cursor()
-            c.execute('''
-                INSERT INTO trades (
-                    time, action, symbol, price, open_price, close_price, volume,
-                    percent_change, stop_loss, take_profit, profit, total_profit,
-                    return_profit, total_return_profit, ema1, ema2, rsi, k, d, j, diff,
-                    macd, macd_signal, macd_hist, lst_diff, supertrend, supertrend_trend,
-                    stoch_rsi, stoch_k, stoch_d, obv, message, timeframe, order_id, strategy
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                signal['time'], signal['action'], signal['symbol'], signal['price'],
-                signal['open_price'], signal['close_price'], signal['volume'],
-                signal['percent_change'], signal['stop_loss'], signal['take_profit'],
-                signal['profit'], signal['total_profit'],
-                signal['return_profit'], signal['total_return_profit'],
-                signal['ema1'], signal['ema2'], signal['rsi'],
-                signal['k'], signal['d'], signal['j'], signal['diff'],
-                signal['macd'], signal['macd_signal'], signal['macd_hist'], signal['lst_diff'],
-                signal['supertrend'], signal['supertrend_trend'],
-                signal['stoch_rsi'], signal['stoch_k'], signal['stoch_d'], signal['obv'],
-                signal['message'], signal['timeframe'], signal['order_id'], signal['strategy']
-            ))
-            conn.commit()
-            elapsed = time.time() - start_time
-            logger.debug(f"Signal stored successfully: action={signal['action']}, strategy={signal['strategy']}, time={signal['time']}, order_id={signal['order_id']}, db_write_time={elapsed:.3f}s")
-        except Exception as e:
-            elapsed = time.time() - start_time
-            logger.error(f"Error storing signal after {elapsed:.3f}s: {e}")
-            conn = None
+        for attempt in range(3):
+            try:
+                if conn is None:
+                    logger.warning("Database connection is None. Attempting to reinitialize.")
+                    if not setup_database():
+                        logger.error("Failed to reinitialize database for signal storage")
+                        return
+                c = conn.cursor()
+                c.execute('''
+                    INSERT INTO trades (
+                        time, action, symbol, price, open_price, close_price, volume,
+                        percent_change, stop_loss, take_profit, profit, total_profit,
+                        return_profit, total_return_profit, ema1, ema2, rsi, k, d, j, diff,
+                        macd, macd_signal, macd_hist, lst_diff, supertrend, supertrend_trend,
+                        stoch_rsi, stoch_k, stoch_d, obv, message, timeframe, order_id, strategy
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    signal['time'], signal['action'], signal['symbol'], signal['price'],
+                    signal['open_price'], signal['close_price'], signal['volume'],
+                    signal['percent_change'], signal['stop_loss'], signal['take_profit'],
+                    signal['profit'], signal['total_profit'],
+                    signal['return_profit'], signal['total_return_profit'],
+                    signal['ema1'], signal['ema2'], signal['rsi'],
+                    signal['k'], signal['d'], signal['j'], signal['diff'],
+                    signal['macd'], signal['macd_signal'], signal['macd_hist'], signal['lst_diff'],
+                    signal['supertrend'], signal['supertrend_trend'],
+                    signal['stoch_rsi'], signal['stoch_k'], signal['stoch_d'], signal['obv'],
+                    signal['message'], signal['timeframe'], signal['order_id'], signal['strategy']
+                ))
+                conn.commit()
+                elapsed = time.time() - start_time
+                logger.debug(f"Signal stored successfully: action={signal['action']}, strategy={signal['strategy']}, time={signal['time']}, order_id={signal['order_id']}, db_write_time={elapsed:.3f}s")
+                return
+            except sqlite3.Error as e:
+                elapsed = time.time() - start_time
+                logger.error(f"Error storing signal after {elapsed:.3f}s (attempt {attempt + 1}/3): {e}")
+                if "no column named" in str(e).lower():
+                    logger.info("Missing column detected. Attempting to reinitialize database.")
+                    if not setup_database():
+                        logger.error("Failed to reinitialize database to add missing column")
+                        return
+                else:
+                    if conn:
+                        conn.close()
+                        conn = None
+                    time.sleep(2)
+            except Exception as e:
+                elapsed = time.time() - start_time
+                logger.error(f"Unexpected error storing signal after {elapsed:.3f}s (attempt {attempt + 1}/3): {e}")
+                if conn:
+                    conn.close()
+                    conn = None
+                time.sleep(2)
+
+        # After 3 failed attempts, force create a new database
+        logger.error("Failed to store signal after 3 attempts. Forcing creation of new database.")
+        if setup_database():
+            try:
+                c = conn.cursor()
+                c.execute('''
+                    INSERT INTO trades (
+                        time, action, symbol, price, open_price, close_price, volume,
+                        percent_change, stop_loss, take_profit, profit, total_profit,
+                        return_profit, total_return_profit, ema1, ema2, rsi, k, d, j, diff,
+                        macd, macd_signal, macd_hist, lst_diff, supertrend, supertrend_trend,
+                        stoch_rsi, stoch_k, stoch_d, obv, message, timeframe, order_id, strategy
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    signal['time'], signal['action'], signal['symbol'], signal['price'],
+                    signal['open_price'], signal['close_price'], signal['volume'],
+                    signal['percent_change'], signal['stop_loss'], signal['take_profit'],
+                    signal['profit'], signal['total_profit'],
+                    signal['return_profit'], signal['total_return_profit'],
+                    signal['ema1'], signal['ema2'], signal['rsi'],
+                    signal['k'], signal['d'], signal['j'], signal['diff'],
+                    signal['macd'], signal['macd_signal'], signal['macd_hist'], signal['lst_diff'],
+                    signal['supertrend'], signal['supertrend_trend'],
+                    signal['stoch_rsi'], signal['stoch_k'], signal['stoch_d'], signal['obv'],
+                    signal['message'], signal['timeframe'], signal['order_id'], signal['strategy']
+                ))
+                conn.commit()
+                elapsed = time.time() - start_time
+                logger.info(f"Signal stored successfully in new database: action={signal['action']}, time={signal['time']}, db_write_time={elapsed:.3f}s")
+            except Exception as e:
+                elapsed = time.time() - start_time
+                logger.error(f"Failed to store signal in forced new database after {elapsed:.3f}s: {e}")
+                if conn:
+                    conn.close()
+                    conn = None
 
 def get_performance():
     global conn
@@ -1147,10 +1291,6 @@ Total Return Profit: {total_return_profit_db:.2f}
             return f"Error fetching trade counts: {str(e)}"
 
 def safe_float(val, default=0.0):
-    """
-    Convert a value safely to float.
-    Returns default (0.0) if conversion fails.
-    """
     try:
         return float(val)
     except (ValueError, TypeError):
@@ -1185,7 +1325,6 @@ def index():
             columns = [col[0] for col in c.description]
             trades = [dict(zip(columns, row)) for row in rows]
 
-            # Ensure numeric fields are floats using safe_float
             numeric_fields = [
                 'price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
                 'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',

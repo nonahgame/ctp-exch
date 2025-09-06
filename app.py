@@ -595,7 +595,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif (supertrend_trend == 1 and kdj_j > 105.00):  # Modified: Sell on Supertrend Uptrend
             logger.info(f"Sell triggered by Supertrend: supertrend_trend=Up, close={close_price:.2f}")
             action = "sell"
-        elif (kdj_j > kdj_d and kdj_j > 70.00 and macd_hist > 1.00 and ema1 > ema2 and rsi > 60.00):  # Existing KDJ/MACD sell condition
+        elif (kdj_j > kdj_d and kdj_j > 70.00 and ema1 > ema2 and rsi > 60.00):  # Existing KDJ/MACD sell condition and macd_hist > 1.00
             logger.info(
                 f"Sell triggered by KDJ/MACD: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "
                 f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"

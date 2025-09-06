@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>IFYBNG-COM</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #d3d3d3;
+        }
+        h1, h2 {
+            color: #0000ff !important;
+        }
+        .signal {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .signal::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1;
+        }
+        .signal h2 {
+            color: #0000ff !important;
+            position: relative;
+            z-index: 2;
+        }
+        .signal li {
+            color: white !important;
+            position: relative;
+            z-index: 2;
+        }
+        .trades {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+            background-color: #000000;
+        }
+        .trades table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .trades th {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            background-color: #f2f2f2;
+            color: #0000ff !important;
+        }
+        .trades td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            white-space: nowrap;
+            color: white !important;
+        }
+        .trades td.action-buy {
+            color: green !important;
+        }
+        .trades td.action-sell {
+            color: red !important;
+        }
+        .trades td.negative {
+            color: red !important;
+        }
+        .trades td.non-negative {
+            color: green !important;
+        }
+        .trades {
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>IFYBNG Bot Dashboard</h1>
+
+    <div class="signal">
+        <h2>Latest Signal</h2>
+        {% if signal %}
+        <ul>
+            <li><strong>Time:</strong> {{ signal.time }}</li>
+            <li><strong>Action:</strong> <span class="{% if signal.action == 'buy' %}action-buy{% elif signal.action == 'sell' %}action-sell{% endif %}">{{ signal.action|upper }}</span></li>
+            <li><strong>Symbol:</strong> {{ signal.symbol }}</li>
+            <li><strong>Price:</strong> {{ "%.2f"|format(signal.price) }}</li>
+            <li><strong>Open Price:</strong> {{ "%.2f"|format(signal.open_price) }}</li>
+            <li><strong>Close Price:</strong> {{ "%.2f"|format(signal.close_price) }}</li>
+            <li><strong>Volume:</strong> {{ "%.2f"|format(signal.volume) }}</li>
+            <li><strong>Percent Change:</strong> <span class="{% if signal.percent_change < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(signal.percent_change) }}%</span></li>
+            {% if signal.stop_loss is not none %}
+            <li><strong>Stop-Loss:</strong> {{ "%.2f"|format(signal.stop_loss) }}</li>
+            {% endif %}
+            {% if signal.take_profit is not none %}
+            <li><strong>Take-Profit:</strong> {{ "%.2f"|format(signal.take_profit) }}</li>
+            {% endif %}
+            {% if signal.action in ['buy', 'sell'] %}
+            <li><strong>Total Profit:</strong> {{ "%.2f"|format(signal.total_profit) }}</li>
+            {% endif %}
+            {% if signal.action == 'sell' %}
+            <li><strong>Profit:</strong> <span class="{% if signal.profit < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(signal.profit) }}</span></li>
+            {% endif %}
+            <li><strong>EMA1 (12):</strong> {{ "%.2f"|format(signal.ema1) }}</li>
+            <li><strong>EMA2 (26):</strong> {{ "%.2f"|format(signal.ema2) }}</li>
+            <li><strong>RSI (14):</strong> {{ "%.2f"|format(signal.rsi) }}</li>
+            <li><strong>Diff:</strong> <span class="{% if signal.diff < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(signal.diff) }}</span></li>
+            <li><strong>Diff1e (EMA1-EMA2):</strong> <span class="{% if signal.diff1e < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(signal.diff1e) }}</span></li>
+            <li><strong>Diff2m (MACD-MACD Signal):</strong> <span class="{% if signal.diff2m < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(signal.diff2m) }}</span></li>
+            <li><strong>Diff3k (J-D):</strong> <span class="{% if signal.diff3k < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(signal.diff3k) }}</span></li>
+            <li><strong>KDJ K:</strong> {{ "%.2f"|format(signal.k) }}</li>
+            <li><strong>KDJ D:</strong> {{ "%.2f"|format(signal.d) }}</li>
+            <li><strong>KDJ J:</strong> {{ "%.2f"|format(signal.j) }}</li>
+            <li><strong>MACD (DIF):</strong> {{ "%.2f"|format(signal.macd) }}</li>
+            <li><strong>MACD Signal (DEA):</strong> {{ "%.2f"|format(signal.macd_signal) }}</li>
+            <li><strong>MACD Hist:</strong> <span class="{% if signal.macd_hist < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(signal.macd_hist) }}</span></li>
+            <li><strong>MACD Hollow:</strong> <span class="{% if signal.macd_hollow < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(signal.macd_hollow) }}</span></li>
+            <li><strong>Lst Diff:</strong> <span class="{% if signal.lst_diff < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(signal.lst_diff) }}</span></li>
+            <li><strong>Supertrend:</strong> {{ "%.2f"|format(signal.supertrend) }}</li>
+            <li><strong>Supertrend Trend:</strong> {{ "Up" if signal.supertrend_trend else "Down" }}</li>
+            <li><strong>Stoch RSI:</strong> {{ "%.2f"|format(signal.stoch_rsi) }}</li>
+            <li><strong>Stoch K:</strong> {{ "%.2f"|format(signal.stoch_k) }}</li>
+            <li><strong>Stoch D:</strong> {{ "%.2f"|format(signal.stoch_d) }}</li>
+            <li><strong>OBV:</strong> {{ "%.2f"|format(signal.obv) }}</li>
+            <li><strong>Message:</strong> {{ signal.message }}</li>
+            <li><strong>Timeframe:</strong> {{ signal.timeframe }}</li>
+            {% if signal.order_id %}
+            <li><strong>Order ID:</strong> {{ signal.order_id }}</li>
+            {% endif %}
+            <li><strong>Strategy:</strong> {{ signal.strategy }}</li>
+        </ul>
+        {% else %}
+        <p>No signal available.</p>
+        {% endif %}
+    </div>
+
+    <div class="trades">
+        <h2>Recent Trades</h2>
+        <table>
+            <tr>
+                <th>Time</th>
+                <th>Action</th>
+                <th>Symbol</th>
+                <th>Price</th>
+                <th>Open Price</th>
+                <th>Close Price</th>
+                <th>Volume</th>
+                <th>% Change</th>
+                <th>Stop-Loss</th>
+                <th>Take-Profit</th>
+                <th>Profit</th>
+                <th>Total Profit</th>
+                <th>Return Profit</th>
+                <th>Total Return Profit</th>
+                <th>EMA1</th>
+                <th>EMA2</th>
+                <th>RSI</th>
+                <th>K</th>
+                <th>D</th>
+                <th>J</th>
+                <th>Diff</th>
+                <th>Diff1e</th>
+                <th>Diff2m</th>
+                <th>Diff3k</th>
+                <th>MACD</th>
+                <th>MACD Signal</th>
+                <th>MACD Hist</th>
+                <th>MACD Hollow</th>
+                <th>Lst Diff</th>
+                <th>Supertrend</th>
+                <th>Supertrend Trend</th>
+                <th>Stoch RSI</th>
+                <th>Stoch K</th>
+                <th>Stoch D</th>
+                <th>OBV</th>
+                <th>Message</th>
+                <th>Timeframe</th>
+                <th>Order ID</th>
+                <th>Strategy</th>
+            </tr>
+            {% for trade in trades %}
+            <tr>
+                <td>{{ trade.time }}</td>
+                <td class="{% if trade.action == 'buy' %}action-buy{% elif trade.action == 'sell' %}action-sell{% endif %}">{{ trade.action|upper }}</td>
+                <td>{{ trade.symbol }}</td>
+                <td>{{ "%.2f"|format(trade.price) }}</td>
+                <td>{{ "%.2f"|format(trade.open_price) }}</td>
+                <td>{{ "%.2f"|format(trade.close_price) }}</td>
+                <td>{{ "%.2f"|format(trade.volume) }}</td>
+                <td class="{% if trade.percent_change < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.percent_change) }}%</td>
+                <td>{{ "%.2f"|format(trade.stop_loss) if trade.stop_loss is not none else '' }}</td>
+                <td>{{ "%.2f"|format(trade.take_profit) if trade.take_profit is not none else '' }}</td>
+                <td class="{% if trade.profit < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.profit) }}</td>
+                <td>{{ "%.2f"|format(trade.total_profit) }}</td>
+                <td class="{% if trade.return_profit < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.return_profit) }}</td>
+                <td>{{ "%.2f"|format(trade.total_return_profit) }}</td>
+                <td>{{ "%.2f"|format(trade.ema1) }}</td>
+                <td>{{ "%.2f"|format(trade.ema2) }}</td>
+                <td>{{ "%.2f"|format(trade.rsi) }}</td>
+                <td>{{ "%.2f"|format(trade.k) }}</td>
+                <td>{{ "%.2f"|format(trade.d) }}</td>
+                <td>{{ "%.2f"|format(trade.j) }}</td>
+                <td class="{% if trade.diff < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.diff) }}</td>
+                <td class="{% if trade.diff1e < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.diff1e) }}</td>
+                <td class="{% if trade.diff2m < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.diff2m) }}</td>
+                <td class="{% if trade.diff3k < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.diff3k) }}</td>
+                <td>{{ "%.2f"|format(trade.macd) }}</td>
+                <td>{{ "%.2f"|format(trade.macd_signal) }}</td>
+                <td class="{% if trade.macd_hist < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.macd_hist) }}</td>
+                <td class="{% if trade.macd_hollow < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.macd_hollow) }}</td>
+                <td class="{% if trade.lst_diff < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.lst_diff) }}</td>
+                <td>{{ "%.2f"|format(trade.supertrend) }}</td>
+                <td>{{ "Up" if trade.supertrend_trend else "Down" }}</td>
+                <td>{{ "%.2f"|format(trade.stoch_rsi) }}</td>
+                <td>{{ "%.2f"|format(trade.stoch_k) }}</td>
+                <td>{{ "%.2f"|format(trade.stoch_d) }}</td>
+                <td>{{ "%.2f"|format(trade.obv) }}</td>
+                <td>{{ trade.message }}</td>
+                <td>{{ trade.timeframe }}</td>
+                <td>{{ trade.order_id if trade.order_id else '' }}</td>
+                <td>{{ trade.strategy }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    <p><strong>Bot Status:</strong> {{ status|upper }}</p>
+    <p><strong>Timeframe:</strong> {{ timeframe }}</p>
+    <p><strong>Stop Time:</strong> {{ stop_time }}</p>
+    <p><strong>Current Time (EU):</strong> {{ current_time }}</p>
+</body>
+</html>

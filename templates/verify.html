@@ -4,7 +4,7 @@
     <title>Verify - IFYBNG-COM</title>
     <style>
         body {
-            fontiamas: font-family: Arial, sans-serif;
+            font-family: Arial, sans-serif;
             margin: 20px;
             background-color: #d3d3d3;
         }
@@ -30,9 +30,22 @@
             color: white;
             border: none;
             cursor: pointer;
+            margin-right: 10px;
         }
         .form-container button:hover {
             background-color: #0056b3;
+        }
+        .resend-btn {
+            background-color: #555;
+        }
+        .resend-btn:hover {
+            background-color: #777;
+        }
+        .skip-btn {
+            background-color: #888;
+        }
+        .skip-btn:hover {
+            background-color: #aaa;
         }
         .flash {
             color: red;
@@ -54,6 +67,9 @@
             <input type="text" name="email_pin" placeholder="Email PIN" required>
             <input type="text" name="phone_pin" placeholder="Phone PIN" required>
             <button type="submit">Verify</button>
+            <!-- Modified: Added resend and skip buttons -->
+            <button type="submit" name="action" value="resend" class="resend-btn">Resend PINs</button>
+            <button type="submit" name="action" value="skip" class="skip-btn">Skip Verification</button>
         </form>
     </div>
 </body>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Search Trades - IFYBNG-COM</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #d3d3d3;
+        }
+        h1, h2 {
+            color: #0000ff !important;
+        }
+        .search-bar {
+            margin-bottom: 20px;
+        }
+        .search-bar select, .search-bar input, .search-bar button {
+            padding: 5px;
+            margin-right: 10px;
+        }
+        .trades {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 20px;
+            background-color: #000000;
+        }
+        .trades table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .trades th {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            background-color: #0000ff;
+            color: white !important;
+        }
+        .trades td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            white-space: nowrap;
+            color: white !important;
+        }
+        .trades td.action-buy {
+            color: green !important;
+        }
+        .trades td.action-sell {
+            color: red !important;
+        }
+        .trades td.negative {
+            color: red !important;
+        }
+        .trades td.non-negative {
+            color: green !important;
+        }
+        .trades {
+            overflow-x: auto;
+        }
+        .flash {
+            color: red;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="nav-bar">
+        <a href="{{ url_for('index') }}">Dashboard</a>
+        <a href="{{ url_for('search') }}">Search</a>
+        <a href="{{ url_for('admin') }}">Admin</a>
+        <a href="{{ url_for('login') }}">Login</a>
+    </div>
+    <h1>Search Trades</h1>
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <p class="flash">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    <div class="search-bar">
+        <form action="{{ url_for('search') }}" method="POST">
+            <select name="column">
+                <option value="id" {% if column == 'id' %}selected{% endif %}>ID</option>
+                <option value="time" {% if column == 'time' %}selected{% endif %}>Time</option>
+                <option value="action" {% if column == 'action' %}selected{% endif %}>Action</option>
+                <option value="symbol" {% if column == 'symbol' %}selected{% endif %}>Symbol</option>
+                <option value="price" {% if column == 'price' %}selected{% endif %}>Price</option>
+                <option value="percent_change" {% if column == 'percent_change' %}selected{% endif %}>Percent Change</option>
+                <option value="profit" {% if column == 'profit' %}selected{% endif %}>Profit</option>
+                <option value="total_profit" {% if column == 'total_profit' %}selected{% endif %}>Total Profit</option>
+                <option value="return_profit" {% if column == 'return_profit' %}selected{% endif %}>Return Profit</option>
+                <option value="total_return_profit" {% if column == 'total_return_profit' %}selected{% endif %}>Total Return Profit</option>
+                <option value="rsi" {% if column == 'rsi' %}selected{% endif %}>RSI</option>
+                <option value="j" {% if column == 'j' %}selected{% endif %}>J</option>
+                <option value="diff" {% if column == 'diff' %}selected{% endif %}>Diff</option>
+                <option value="lst_diff" {% if column == 'lst_diff' %}selected{% endif %}>Lst Diff</option>
+                <option value="order_id" {% if column == 'order_id' %}selected{% endif %}>Order ID</option>
+                <option value="message" {% if column == 'message' %}selected{% endif %}>Message</option>
+            </select>
+            <input type="text" name="value" placeholder="Enter value to search" value="{{ value }}" required>
+            <button type="submit">Search</button>
+        </form>
+    </div>
+    <div class="trades">
+        <h2>Search Results</h2>
+        {% if trades %}
+        <table>
+            <tr>
+                <th>Time</th>
+                <th>Price</th>
+                <th>% Change</th>
+                <th>Profit</th>
+                <th>Total Profit</th>
+                <th>Return Profit</th>
+                <th>Total Return Profit</th>
+                <th>RSI</th>
+                <th>J</th>
+                <th>Diff</th>
+                <th>Lst Diff</th>
+                <th>Order ID</th>
+                <th>Message</th>
+            </tr>
+            {% for trade in trades %}
+            <tr>
+                <td>{{ trade.time }}</td>
+                <td>{{ "%.2f"|format(trade.price) }}</td>
+                <td class="{% if trade.percent_change < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.percent_change) }}%</td>
+                <td class="{% if trade.profit < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.profit) }}</td>
+                <td>{{ "%.2f"|format(trade.total_profit) }}</td>
+                <td class="{% if trade.return_profit < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.return_profit) }}</td>
+                <td>{{ "%.2f"|format(trade.total_return_profit) }}</td>
+                <td>{{ "%.2f"|format(trade.rsi) }}</td>
+                <td>{{ "%.2f"|format(trade.j) }}</td>
+                <td class="{% if trade.diff < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.diff) }}</td>
+                <td class="{% if trade.lst_diff < 0 %}negative{% else %}non-negative{% endif %}">{{ "%.2f"|format(trade.lst_diff) }}</td>
+                <td>{{ trade.order_id if trade.order_id else '' }}</td>
+                <td>{{ trade.message }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+        <p>No results found.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

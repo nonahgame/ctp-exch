@@ -575,6 +575,8 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
     macd_hist = latest['macd_hist'] if not pd.isna(latest['macd_hist']) else 0.0
     rsi = latest['rsi'] if not pd.isna(latest['rsi']) else 0.0
     lst_diff = latest['lst_diff'] if not pd.isna(latest['lst_diff']) else 0.0
+    diff3k = latest['diff3k'] if not pd.isna(latest['diff3k']) else 0.0
+    macd_hollow = latest['macd_hollow'] if not pd.isna(latest['macd_hollow']) else 0.0
     supertrend_trend = latest['supertrend_trend'] if not pd.isna(latest['supertrend_trend']) else 0
     stop_loss = None
     take_profit = None
@@ -602,7 +604,10 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif close_price >= take_profit:
             logger.info("Take-profit triggered.")
             action = "sell"
-        elif (supertrend_trend == 1 and kdj_j > kdj_d and kdj_j > 112.00 and rsi > 60.00):
+        elif (lst_diff < - 0.00 and macd_hollow < 0.01 and diff3k < - 0.00 and rsi > 50.00):
+            logger.info(f"Sell triggered by macd_hollow: macd_hollow=Up, close={close_price:.2f}")
+            action = "sell"
+        elif (supertrend_trend == 1.00 and kdj_j > 115.00 and rsi > 60.00):
             logger.info(f"Sell triggered by Supertrend: supertrend_trend=Up, close={close_price:.2f}")
             action = "sell"
         elif (kdj_j > kdj_d and kdj_j > 100.00 and ema1 > ema2 and rsi > 60.00):
@@ -612,16 +617,27 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
             )
             action = "sell"
 
+    #if action == "hold" and position is None:
+        #if (supertrend_trend == 0 and kdj_j < kdj_d and kdj_j < -6.00 and rsi < 30.00):
+            #logger.info(
+             #   f"Buy triggered by Supertrend: supertrend_trend=Down, close={close_price:.2f}"
+            #)
+            #action = "buy"
     if action == "hold" and position is None:
-        if (supertrend_trend == 0 and kdj_j < kdj_d and kdj_j < -6.00 and rsi < 30.00):
+        if (lst_diff > 0.00 and macd_hollow > 0.00 and diff3k > 0.00 and rsi < 45.00):
             logger.info(
-                f"Buy triggered by Supertrend: supertrend_trend=Down, close={close_price:.2f}"
+                f"Buy triggered by macd_hollow: macd_hollow=Down, close={close_price:.2f}"
             )
             action = "buy"
         elif (kdj_j < kdj_d and kdj_j < -5.00 and ema1 < ema2 and rsi < 19.00):
             logger.info(
                 f"Buy triggered by KDJ/MACD: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "
                 f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"
+            )
+            action = "buy"
+        elif (supertrend_trend == 0.00 and kdj_j < -6.00 and rsi < 17.00):
+            logger.info(
+                f"Buy triggered by Supertrend: supertrend_trend=Down, close={close_price:.2f}"
             )
             action = "buy"
 

@@ -35,6 +35,22 @@
         .nav-bar a:hover {
             text-decoration: underline;
         }
+        .profile-icon {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+        .profile-icon.complete { background-color: green; }
+        .profile-icon.incomplete { background-color: black; }
+        .profile-icon.warning { background-color: red; }
+        .profile-icon.id_uploaded { background-color: blue; }
+        .warning-message {
+            color: red;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
         .signal {
             border: 1px solid #ccc;
             padding: 10px;
@@ -142,15 +158,24 @@
         <p><strong>Current Time (EU):</strong> {{ current_time }}</p>
     </div>
 
+    <!-- Modified: Added profile icon and link -->
     <div class="nav-bar">
         <a href="{{ url_for('index') }}">Dashboard</a>
         <a href="{{ url_for('search') }}">Search</a>
         <a href="{{ url_for('admin') }}">Admin</a>
+        <a href="{{ url_for('profile') }}">Profile<span class="profile-icon {{ profile_status }}"></span></a>
         <a href="{{ url_for('login') }}">Login</a>
         <a href="{{ url_for('register') }}">Register</a>
     </div>
 
     <h1>IFYBNG Bot Dashboard</h1>
+
+    <!-- Modified: Added warning message display -->
+    {% if user and user.warning_message and user.warning_expiry and user.warning_expiry > current_time %}
+    <div class="warning-message">
+        <p>Warning: {{ user.warning_message }} (Expires: {{ user.warning_expiry }})</p>
+    </div>
+    {% endif %}
 
     <div class="signal">
         <h2>Latest Signal</h2>

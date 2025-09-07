@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Admin Panel - IFYBNG-COM</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #d3d3d3;
+        }
+        h1, h2 {
+            color: #0000ff !important;
+        }
+        .admin-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #000;
+            color: white;
+            border-radius: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #0000ff;
+            color: white !important;
+        }
+        .action-btn {
+            padding: 5px 10px;
+            margin-right: 5px;
+            border: none;
+            cursor: pointer;
+            color: white;
+        }
+        .approve-btn { background-color: green; }
+        .block-btn { background-color: orange; }
+        .delete-btn { background-color: red; }
+        .flash {
+            color: red;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <h1>Admin Panel</h1>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <p class="flash">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <h2>Users</h2>
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>First Name</th>
+                <th>Last Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Age</th>
+                <th>Country</th>
+                <th>State</th>
+                <th>Address</th>
+                <th>Occupation</th>
+                <th>ID Card Front</th>
+                <th>ID Card Back</th>
+                <th>Status</th>
+                <th>Created At</th>
+                <th>Actions</th>
+            </tr>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.first_name }}</td>
+                <td>{{ user.last_name }}</td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.phone }}</td>
+                <td>{{ user.age }}</td>
+                <td>{{ user.country }}</td>
+                <td>{{ user.state }}</td>
+                <td>{{ user.address }}</td>
+                <td>{{ user.occupation }}</td>
+                <td><a href="{{ url_for('static', filename=user.id_card_front.split('static/')[1]) }}" target="_blank">View</a></td>
+                <td><a href="{{ url_for('static', filename=user.id_card_back.split('static/')[1]) }}" target="_blank">View</a></td>
+                <td>{{ user.status|upper }}</td>
+                <td>{{ user.created_at }}</td>
+                <td>
+                    <form action="{{ url_for('admin_action') }}" method="POST" style="display:inline;">
+                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                        <input type="hidden" name="action" value="approve">
+                        <button type="submit" class="action-btn approve-btn">Approve</button>
+                    </form>
+                    <form action="{{ url_for('admin_action') }}" method="POST" style="display:inline;">
+                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                        <input type="hidden" name="action" value="block">
+                        <button type="submit" class="action-btn block-btn">Block</button>
+                    </form>
+                    <form action="{{ url_for('admin_action') }}" method="POST" style="display:inline;">
+                        <input type="hidden" name="user_id" value="{{ user.id }}">
+                        <input type="hidden" name="action" value="delete">
+                        <button type="submit" class="action-btn delete-btn">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        <h2>Admin Logs</h2>
+        <table>
+            <tr>
+                <th>ID</th>
+                <th>Admin ID</th>
+                <th>Action</th>
+                <th>Target User ID</th>
+                <th>Details</th>
+                <th>Timestamp</th>
+            </tr>
+            {% for log in admin_logs %}
+            <tr>
+                <td>{{ log.id }}</td>
+                <td>{{ log.admin_id }}</td>
+                <td>{{ log.action|upper }}</td>
+                <td>{{ log.target_user_id }}</td>
+                <td>{{ log.details }}</td>
+                <td>{{ log.timestamp }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</body>
+</html>

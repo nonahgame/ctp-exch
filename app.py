@@ -1,4 +1,3 @@
-# app.py Dynamic interface
 import os
 import pandas as pd
 import numpy as np
@@ -14,7 +13,7 @@ import logging
 import threading
 import requests
 import base64
-from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash, send_file
 import atexit
 import asyncio
 import secrets
@@ -23,10 +22,12 @@ from email.mime.text import MIMEText
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import re
+import uuid
+from zoneinfo import ZoneInfo
 
 pd.set_option('future.no_silent_downcasting', True)
 
-# Custom formatter for EU timezone (UTC)
+# Custom formatter for EU timezone
 class EUFormatter(logging.Formatter):
     def __init__(self, fmt=None, datefmt=None, tz=pytz.utc):
         super().__init__(fmt, datefmt)
@@ -71,23 +72,24 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID", "CHAT_ID")
 SYMBOL = os.getenv("SYMBOL", "SYMBOL")
 TIMEFRAME = os.getenv("TIMEFRAME", "TIMEFRAME")
-TIMEFRAMES = int(os.getenv("INTER_SECONDS", "INTER_SECONDS"))
-STOP_LOSS_PERCENT = float(os.getenv("STOP_LOSS_PERCENT", "STOP_LOSS_PERCENT"))
-TAKE_PROFIT_PERCENT = float(os.getenv("TAKE_PROFIT_PERCENT", "TAKE_PROFIT_PERCENT"))
-STOP_AFTER_SECONDS = float(os.getenv("STOP_AFTER_SECONDS", 0))
+TIMEFRAMES = int(os.getenv("INTER_SECONDS", "60"))
+STOP_LOSS_PERCENT = float(os.getenv("STOP_LOSS_PERCENT", "2.0"))
+TAKE_PROFIT_PERCENT = float(os.getenv("TAKE_PROFIT_PERCENT", "5.0"))
+STOP_AFTER_SECONDS = float(os.getenv("STOP_AFTER_SECONDS", "0"))
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "GITHUB_TOKEN")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "GITHUB_REPO")
 GITHUB_PATH = os.getenv("GITHUB_PATH", "GITHUB_PATH")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "BINANCE_API_KEY")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "BINANCE_API_SECRET")
-AMOUNTS = float(os.getenv("AMOUNTS", "AMOUNTS"))
-ADMIN_PASSPHRASE = os.getenv("ADMIN_PASSPHRASE", "ADMIN_PASSPHRASE")
-EMAIL_SERVER = os.getenv("EMAIL_SERVER", "EMAIL_SERVER")
+AMOUNTS = float(os.getenv("AMOUNTS", "100.0"))
+ADMIN_PASSPHRASE = os.getenv("ADMIN_PASSPHRASE", "admin_secret_passphrase")
+EMAIL_SERVER = os.getenv("EMAIL_SERVER", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", 587))
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "EMAIL_ADDRESS")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "EMAIL_PASSWORD")
-SMS_API_KEY = os.getenv("SMS_API_KEY", "SMS_API_KEY")
-UPLOAD_FOLDER = 'uploads'
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "your_email@gmail.com")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "your_email_password")
+SMS_API_KEY = os.getenv("SMS_API_KEY", "your_sms_api_key")
+PASSWORD_RESET_TOKEN_EXPIRY = int(os.getenv("PASSWORD_RESET_TOKEN_EXPIRY", 3600))
+UPLOAD_FOLDER = 'static/Uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
 # Configure upload folder
@@ -105,7 +107,7 @@ HEADERS = {
 db_path = 'rnn_bot.db'
 
 # Timezone setup
-EU_TZ = pytz.utc
+EU_TZ = ZoneInfo("Europe/Berlin")
 
 # Global state
 bot_thread = None
@@ -137,29 +139,29 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def generate_pin():
-    return ''.join([str(secrets.randbelow(10)) for _ in range(6)])
+    return str(secrets.randbelow(1000000)).zfill(6)
 
-def send_email(to_email, pin):
+def send_email(to_email, pin, is_resend=False):
     try:
+        subject = 'IFYBNG Verification PIN' if not is_resend else 'IFYBNG Verification PIN (Resend)'
         msg = MIMEText(f"Your verification PIN is: {pin}")
-        msg['Subject'] = 'IFYBNG Verification PIN'
+        msg['Subject'] = subject
         msg['From'] = EMAIL_ADDRESS
         msg['To'] = to_email
         with smtplib.SMTP(EMAIL_SERVER, EMAIL_PORT) as server:
             server.starttls()
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             server.send_message(msg)
-        logger.info(f"Verification email sent to {to_email}")
+        logger.info(f"{'Resent' if is_resend else 'Sent'} verification email to {to_email}")
         return True
     except Exception as e:
         logger.error(f"Error sending email to {to_email}: {e}")
         return False
 
-def send_sms(phone, pin):
+def send_sms(phone, pin, is_resend=False):
     try:
-        # Placeholder for SMS API (e.g., using Twilio or similar service)
-        # Replace with actual SMS API implementation
-        logger.info(f"SMS sent to {phone} with PIN {pin} (mock)")
+        # Placeholder for SMS API (e.g., Twilio)
+        logger.info(f"{'Resent' if is_resend else 'Sent'} SMS to {phone} with PIN {pin} (mock)")
         return True
     except Exception as e:
         logger.error(f"Error sending SMS to {phone}: {e}")
@@ -263,6 +265,35 @@ def setup_database(first_attempt=False):
                 logger.info(f"Connected to database at {db_path}")
 
                 c = conn.cursor()
+                # Signals table
+                c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='signals';")
+                if not c.fetchone():
+                    c.execute('''
+                        CREATE TABLE signals (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            time TEXT,
+                            action TEXT,
+                            symbol TEXT,
+                            price REAL,
+                            message TEXT,
+                            timeframe TEXT,
+                            strategy TEXT,
+                            win_rate TEXT,
+                            lose_rate TEXT,
+                            hold_rate TEXT,
+                            buy_rate TEXT,
+                            sell_rate TEXT,
+                            total_winning REAL,
+                            total_lose REAL,
+                            profit REAL,
+                            total_profit REAL,
+                            return_profit REAL,
+                            total_return_profit REAL
+                        )
+                    ''')
+                    logger.info("Created new signals table")
+                    conn.commit()
+
                 # Trades table
                 c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='trades';")
                 if not c.fetchone():
@@ -334,7 +365,9 @@ def setup_database(first_attempt=False):
                             email_verified INTEGER DEFAULT 0,
                             phone_verified INTEGER DEFAULT 0,
                             status TEXT DEFAULT 'pending',
-                            created_at TEXT
+                            created_at TEXT,
+                            warning_message TEXT,
+                            warning_expiry TEXT
                         )
                     ''')
                     logger.info("Created new users table")
@@ -354,6 +387,21 @@ def setup_database(first_attempt=False):
                         )
                     ''')
                     logger.info("Created new admin_logs table")
+                    conn.commit()
+
+                # Password reset tokens table
+                c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='password_reset_tokens';")
+                if not c.fetchone():
+                    c.execute('''
+                        CREATE TABLE password_reset_tokens (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER,
+                            token TEXT UNIQUE,
+                            created_at TEXT,
+                            expires_at TEXT
+                        )
+                    ''')
+                    logger.info("Created new password_reset_tokens table")
                     conn.commit()
 
                 c.execute("PRAGMA table_info(trades);")
@@ -408,6 +456,104 @@ if not setup_database(first_attempt=True):
     logger.critical("Failed to initialize database. Flask routes may fail.")
 
 # Flask routes
+@app.route('/')
+def index():
+    global conn, stop_time
+    status = "active" if bot_active else "stopped"
+    start_time = time.time()
+    with db_lock:
+        try:
+            if conn is None:
+                if not setup_database(first_attempt=True):
+                    logger.error("Failed to reinitialize database for index route")
+                    stop_time_str = stop_time.strftime("%Y-%m-%d %H:%M:%S") if stop_time else "N/A"
+                    current_time = datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")
+                    return render_template(
+                        'index.html',
+                        signal=None,
+                        status=status,
+                        timeframe=TIMEFRAME,
+                        trades=[],
+                        stop_time=stop_time_str,
+                        current_time=current_time,
+                        metrics={},
+                        user=None,
+                        profile_status='incomplete'
+                    )
+
+            c = conn.cursor()
+            c.execute("SELECT * FROM signals ORDER BY id DESC LIMIT 1")
+            signal_row = c.fetchone()
+            signal = None
+            if signal_row:
+                signal = dict(zip(['id', 'time', 'action', 'symbol', 'price', 'message', 'timeframe', 'strategy',
+                                   'win_rate', 'lose_rate', 'hold_rate', 'buy_rate', 'sell_rate', 'total_winning',
+                                   'total_lose', 'profit', 'total_profit', 'return_profit', 'total_return_profit'], signal_row))
+
+            c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT 48")
+            rows = c.fetchall()
+            columns = [col[0] for col in c.description]
+            trades = [dict(zip(columns, row)) for row in rows]
+
+            numeric_fields = [
+                'price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
+                'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
+                'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
+                'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
+                'stoch_rsi', 'stoch_k', 'stoch_d', 'obv'
+            ]
+
+            for trade in trades:
+                for field in numeric_fields:
+                    trade[field] = float(trade[field]) if trade[field] is not None else 0.0
+
+            user = None
+            profile_status = 'incomplete'
+            if 'user_id' in session:
+                c.execute("SELECT * FROM users WHERE id=?", (session['user_id'],))
+                user = c.fetchone()
+                if user:
+                    user = dict(zip([col[0] for col in c.description], user))
+                    is_complete = all([user['first_name'], user['last_name'], user['email'], user['phone'],
+                                       user['age'], user['country'], user['state'], user['address'],
+                                       user['occupation'], user['email_verified'], user['phone_verified']])
+                    has_id_cards = user['id_card_front'] and user['id_card_back']
+                    has_warning = user['warning_message'] and user['warning_expiry'] and datetime.strptime(user['warning_expiry'], "%Y-%m-%d %H:%M:%S") > datetime.now(EU_TZ)
+                    if has_warning:
+                        profile_status = 'warning'
+                    elif is_complete:
+                        profile_status = 'complete'
+                    elif has_id_cards:
+                        profile_status = 'id_uploaded'
+                    else:
+                        profile_status = 'incomplete'
+
+            metrics = get_performance_metrics()
+            if signal:
+                signal.update(metrics)
+
+            stop_time_str = stop_time.strftime("%Y-%m-%d %H:%M:%S") if stop_time else "N/A"
+            current_time = datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")
+            elapsed = time.time() - start_time
+            logger.info(f"Rendering index.html: status={status}, timeframe={TIMEFRAME}, trades={len(trades)}, query_time={elapsed:.3f}s")
+
+            return render_template(
+                'index.html',
+                signal=signal,
+                status=status,
+                timeframe=TIMEFRAME,
+                trades=trades,
+                stop_time=stop_time_str,
+                current_time=current_time,
+                metrics=metrics,
+                user=user,
+                profile_status=profile_status
+            )
+
+        except Exception as e:
+            logger.error(f"Error rendering index.html: {e}")
+            return "<h1>Error</h1><p>Failed to load page. Please try again later.</p>", 500
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -423,6 +569,7 @@ def register():
         password = request.form.get('password')
         id_card_front = request.files.get('id_card_front')
         id_card_back = request.files.get('id_card_back')
+        skip_verification = request.form.get('skip_verification') == 'on'
 
         # Validation
         if not re.match(r"^\+\d{1,3}\d{10}$", phone):
@@ -446,9 +593,10 @@ def register():
             id_back_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             id_card_back.save(id_back_path)
 
-        # Generate PINs
+        # Generate PINs and store creation time
         email_pin = generate_pin()
         phone_pin = generate_pin()
+        pin_created_at = datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
         # Store user data
         try:
@@ -461,19 +609,27 @@ def register():
                 ''', (
                     first_name, last_name, email, phone, age, country, state, address,
                     occupation, id_front_path, id_back_path, generate_password_hash(password),
-                    datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")
+                    pin_created_at
                 ))
                 conn.commit()
                 user_id = c.lastrowid
-                session['pending_email'] = email
-                session['pending_phone'] = phone
-                session['email_pin'] = email_pin
-                session['phone_pin'] = phone_pin
-                session['user_id'] = user_id
-                send_email(email, email_pin)
-                send_sms(phone, phone_pin)
-                flash("Registration successful. Please verify your email and phone.")
-                return redirect(url_for('verify'))
+                if not skip_verification:
+                    session['pending_email'] = email
+                    session['pending_phone'] = phone
+                    session['email_pin'] = email_pin
+                    session['phone_pin'] = phone_pin
+                    session['pin_created_at'] = pin_created_at
+                    session['user_id'] = user_id
+                    if send_email(email, email_pin) and send_sms(phone, phone_pin):
+                        flash("Registration successful. Please verify your email and phone.")
+                        return redirect(url_for('verify'))
+                    else:
+                        flash("Failed to send verification PINs. You can resend or skip verification.")
+                        return redirect(url_for('verify'))
+                else:
+                    session['user_id'] = user_id
+                    flash("Registration successful. You can complete verification later from your profile.")
+                    return redirect(url_for('index'))
         except sqlite3.IntegrityError:
             flash("Email or phone number already registered.")
             return redirect(url_for('register'))
@@ -489,26 +645,47 @@ def verify():
         flash("No pending verification found.")
         return redirect(url_for('register'))
     if request.method == 'POST':
-        email_pin = request.form.get('email_pin')
-        phone_pin = request.form.get('phone_pin')
-        if email_pin == session.get('email_pin') and phone_pin == session.get('phone_pin'):
-            try:
-                with db_lock:
-                    c = conn.cursor()
-                    c.execute("UPDATE users SET email_verified=1, phone_verified=1, status='pending_admin' WHERE id=?", (session['user_id'],))
-                    conn.commit()
-                    flash("Verification successful. Awaiting admin approval.")
-                    session.pop('pending_email', None)
-                    session.pop('pending_phone', None)
-                    session.pop('email_pin', None)
-                    session.pop('phone_pin', None)
-                    session.pop('user_id', None)
-                    return redirect(url_for('login'))
-            except Exception as e:
-                logger.error(f"Error during verification: {e}")
-                flash("Verification failed. Please try again.")
+        if request.form.get('action') == 'resend':
+            email_pin = generate_pin()
+            phone_pin = generate_pin()
+            pin_created_at = datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")
+            session['email_pin'] = email_pin
+            session['phone_pin'] = phone_pin
+            session['pin_created_at'] = pin_created_at
+            if send_email(session['pending_email'], email_pin, is_resend=True) and send_sms(session['pending_phone'], phone_pin, is_resend=True):
+                flash("New verification PINs sent.")
+            else:
+                flash("Failed to resend verification PINs.")
+            return redirect(url_for('verify'))
+        elif request.form.get('action') == 'skip':
+            flash("Verification skipped. You can complete it later from your profile.")
+            return redirect(url_for('index'))
         else:
-            flash("Invalid PINs. Please try again.")
+            email_pin = request.form.get('email_pin')
+            phone_pin = request.form.get('phone_pin')
+            pin_created_at = datetime.strptime(session.get('pin_created_at'), "%Y-%m-%d %H:%M:%S")
+            if (datetime.now(EU_TZ) - pin_created_at).total_seconds() > 180:
+                flash("Verification PINs have expired. Please resend.")
+                return redirect(url_for('verify'))
+            if email_pin == session.get('email_pin') and phone_pin == session.get('phone_pin'):
+                try:
+                    with db_lock:
+                        c = conn.cursor()
+                        c.execute("UPDATE users SET email_verified=1, phone_verified=1, status='pending_admin' WHERE id=?", (session['user_id'],))
+                        conn.commit()
+                        flash("Verification successful. Awaiting admin approval.")
+                        session.pop('pending_email', None)
+                        session.pop('pending_phone', None)
+                        session.pop('email_pin', None)
+                        session.pop('phone_pin', None)
+                        session.pop('pin_created_at', None)
+                        session.pop('user_id', None)
+                        return redirect(url_for('login'))
+                except Exception as e:
+                    logger.error(f"Error during verification: {e}")
+                    flash("Verification failed. Please try again.")
+            else:
+                flash("Invalid PINs. Please try again or resend.")
     return render_template('verify.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -522,16 +699,12 @@ def login():
                 c.execute("SELECT id, password, status FROM users WHERE email=?", (email,))
                 user = c.fetchone()
                 if user and check_password_hash(user[1], password):
-                    if user[2] == 'active':
+                    if user[2] in ['active', 'pending_admin', 'pending']:
                         session['user_id'] = user[0]
                         flash("Login successful.")
                         return redirect(url_for('index'))
-                    elif user[2] == 'pending_admin':
-                        flash("Your account is awaiting admin approval.")
-                    elif user[2] == 'blocked':
-                        flash("Your account is blocked.")
                     else:
-                        flash("Account status unknown.")
+                        flash("Invalid email or password.")
                 else:
                     flash("Invalid email or password.")
         except Exception as e:
@@ -539,29 +712,167 @@ def login():
             flash("Login failed. Please try again.")
     return render_template('login.html')
 
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    if 'user_id' not in session:
+        flash("Please login first.")
+        return redirect(url_for('login'))
+    try:
+        with db_lock:
+            c = conn.cursor()
+            c.execute("SELECT * FROM users WHERE id=?", (session['user_id'],))
+            user = c.fetchone()
+            if not user:
+                flash("User not found.")
+                return redirect(url_for('login'))
+            user_dict = dict(zip([col[0] for col in c.description], user))
+            
+            is_complete = all([user_dict['first_name'], user_dict['last_name'], user_dict['email'], user_dict['phone'], 
+                               user_dict['age'], user_dict['country'], user_dict['state'], user_dict['address'], 
+                               user_dict['occupation'], user_dict['email_verified'], user_dict['phone_verified']])
+            has_id_cards = user_dict['id_card_front'] and user_dict['id_card_back']
+            has_warning = user_dict['warning_message'] and user_dict['warning_expiry'] and datetime.strptime(user_dict['warning_expiry'], "%Y-%m-%d %H:%M:%S") > datetime.now(EU_TZ)
+            if has_warning:
+                profile_status = 'warning'
+            elif is_complete:
+                profile_status = 'complete'
+            elif has_id_cards:
+                profile_status = 'id_uploaded'
+            else:
+                profile_status = 'incomplete'
+
+            if request.method == 'POST':
+                if request.form.get('action') == 'update_profile':
+                    first_name = request.form.get('first_name')[:50]
+                    last_name = request.form.get('last_name')[:50]
+                    age = request.form.get('age')[:50]
+                    country = request.form.get('country')[:50]
+                    state = request.form.get('state')[:50]
+                    address = request.form.get('address')[:250]
+                    occupation = request.form.get('occupation')[:100]
+                    id_card_front = request.files.get('id_card_front')
+                    id_card_back = request.files.get('id_card_back')
+
+                    updates = {}
+                    if first_name:
+                        updates['first_name'] = first_name
+                    if last_name:
+                        updates['last_name'] = last_name
+                    if age:
+                        updates['age'] = age
+                    if country:
+                        updates['country'] = country
+                    if state:
+                        updates['state'] = state
+                    if address:
+                        updates['address'] = address
+                    if occupation:
+                        updates['occupation'] = occupation
+                    if id_card_front and allowed_file(id_card_front.filename):
+                        filename = secure_filename(f"{secrets.token_hex(8)}_front_{id_card_front.filename}")
+                        id_front_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                        id_card_front.save(id_front_path)
+                        updates['id_card_front'] = id_front_path
+                    if id_card_back and allowed_file(id_card_back.filename):
+                        filename = secure_filename(f"{secrets.token_hex(8)}_back_{id_card_back.filename}")
+                        id_back_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                        id_card_back.save(id_back_path)
+                        updates['id_card_back'] = id_back_path
+
+                    if updates:
+                        query = "UPDATE users SET " + ", ".join(f"{k}=?" for k in updates.keys()) + " WHERE id=?"
+                        c.execute(query, list(updates.values()) + [session['user_id']])
+                        conn.commit()
+                        flash("Profile updated successfully.")
+
+                    return redirect(url_for('profile'))
+                elif request.form.get('action') == 'verify':
+                    email_pin = generate_pin()
+                    phone_pin = generate_pin()
+                    pin_created_at = datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")
+                    session['pending_email'] = user_dict['email']
+                    session['pending_phone'] = user_dict['phone']
+                    session['email_pin'] = email_pin
+                    session['phone_pin'] = phone_pin
+                    session['pin_created_at'] = pin_created_at
+                    if send_email(user_dict['email'], email_pin) and send_sms(user_dict['phone'], phone_pin):
+                        flash("Verification PINs sent.")
+                        return redirect(url_for('verify'))
+                    else:
+                        flash("Failed to send verification PINs.")
+                        return redirect(url_for('profile'))
+
+            return render_template('profile.html', user=user_dict, profile_status=profile_status)
+    except Exception as e:
+        logger.error(f"Error loading profile: {e}")
+        flash("Error loading profile.")
+        return redirect(url_for('index'))
+
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
     if 'user_id' not in session:
         flash("Please login first.")
         return redirect(url_for('login'))
     if request.method == 'POST':
-        passphrase = request.form.get('passphrase')
-        if passphrase != ADMIN_PASSPHRASE:
-            flash("Invalid admin passphrase.")
-            return redirect(url_for('admin'))
-        session['is_admin'] = True
-        try:
-            with db_lock:
-                c = conn.cursor()
-                c.execute("SELECT id, first_name, last_name, email, phone, age, country, state, address, occupation, id_card_front, id_card_back, status, created_at FROM users")
-                users = [dict(zip(['id', 'first_name', 'last_name', 'email', 'phone', 'age', 'country', 'state', 'address', 'occupation', 'id_card_front', 'id_card_back', 'status', 'created_at'], row)) for row in c.fetchall()]
-                c.execute("SELECT id, admin_id, action, target_user_id, details, timestamp FROM admin_logs")
-                admin_logs = [dict(zip(['id', 'admin_id', 'action', 'target_user_id', 'details', 'timestamp'], row)) for row in c.fetchall()]
-                return render_template('admin.html', users=users, admin_logs=admin_logs)
-        except Exception as e:
-            logger.error(f"Error loading admin panel: {e}")
-            flash("Error loading admin panel.")
-            return redirect(url_for('index'))
+        if request.form.get('action') == 'search_incomplete':
+            try:
+                with db_lock:
+                    c = conn.cursor()
+                    c.execute("""
+                        SELECT id, first_name, last_name, email, phone, age, country, state, address, occupation,
+                               id_card_front, id_card_back, status, created_at, warning_message, warning_expiry
+                        FROM users
+                        WHERE first_name IS NULL OR last_name IS NULL OR age IS NULL OR country IS NULL OR
+                              state IS NULL OR address IS NULL OR occupation IS NULL OR
+                              email_verified = 0 OR phone_verified = 0
+                    """)
+                    users = [dict(zip(['id', 'first_name', 'last_name', 'email', 'phone', 'age', 'country', 'state',
+                                       'address', 'occupation', 'id_card_front', 'id_card_back', 'status', 'created_at',
+                                       'warning_message', 'warning_expiry'], row)) for row in c.fetchall()]
+                    c.execute("SELECT id, admin_id, action, target_user_id, details, timestamp FROM admin_logs")
+                    admin_logs = [dict(zip(['id', 'admin_id', 'action', 'target_user_id', 'details', 'timestamp'], row)) for row in c.fetchall()]
+                    return render_template('admin.html', users=users, admin_logs=admin_logs, search_type='incomplete')
+            except Exception as e:
+                logger.error(f"Error searching incomplete profiles: {e}")
+                flash("Error performing search.")
+                return redirect(url_for('admin'))
+        elif request.form.get('action') == 'issue_warning':
+            user_id = request.form.get('user_id')
+            warning_message = request.form.get('warning_message')
+            warning_days = int(request.form.get('warning_days', 7))
+            warning_expiry = (datetime.now(EU_TZ) + timedelta(days=warning_days)).strftime("%Y-%m-%d %H:%M:%S")
+            try:
+                with db_lock:
+                    c = conn.cursor()
+                    c.execute("UPDATE users SET warning_message=?, warning_expiry=? WHERE id=?", (warning_message, warning_expiry, user_id))
+                    conn.commit()
+                    c.execute("INSERT INTO admin_logs (admin_id, action, target_user_id, details, timestamp) VALUES (?, ?, ?, ?, ?)",
+                              (session['user_id'], 'warning', user_id, f"Issued warning: {warning_message}", datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")))
+                    conn.commit()
+                    flash(f"Warning issued to user {user_id}.")
+                    return redirect(url_for('admin'))
+            except Exception as e:
+                logger.error(f"Error issuing warning: {e}")
+                flash("Error issuing warning.")
+                return redirect(url_for('admin'))
+        else:
+            passphrase = request.form.get('passphrase')
+            if passphrase != ADMIN_PASSPHRASE:
+                flash("Invalid admin passphrase.")
+                return redirect(url_for('admin'))
+            session['is_admin'] = True
+            try:
+                with db_lock:
+                    c = conn.cursor()
+                    c.execute("SELECT id, first_name, last_name, email, phone, age, country, state, address, occupation, id_card_front, id_card_back, status, created_at, warning_message, warning_expiry FROM users")
+                    users = [dict(zip(['id', 'first_name', 'last_name', 'email', 'phone', 'age', 'country', 'state', 'address', 'occupation', 'id_card_front', 'id_card_back', 'status', 'created_at', 'warning_message', 'warning_expiry'], row)) for row in c.fetchall()]
+                    c.execute("SELECT id, admin_id, action, target_user_id, details, timestamp FROM admin_logs")
+                    admin_logs = [dict(zip(['id', 'admin_id', 'action', 'target_user_id', 'details', 'timestamp'], row)) for row in c.fetchall()]
+                    return render_template('admin.html', users=users, admin_logs=admin_logs, search_type='all')
+            except Exception as e:
+                logger.error(f"Error loading admin panel: {e}")
+                flash("Error loading admin panel.")
+                return redirect(url_for('index'))
     return render_template('admin_login.html')
 
 @app.route('/admin/action', methods=['POST'])
@@ -607,6 +918,72 @@ def admin_action():
         flash("Error performing admin action.")
         return redirect(url_for('admin'))
 
+@app.route('/reset_password', methods=['GET', 'POST'])
+def reset_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        try:
+            with db_lock:
+                c = conn.cursor()
+                c.execute("SELECT id FROM users WHERE email=?", (email,))
+                user = c.fetchone()
+                if user:
+                    token = str(uuid.uuid4())
+                    created_at = datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")
+                    expires_at = (datetime.now(EU_TZ) + timedelta(seconds=PASSWORD_RESET_TOKEN_EXPIRY)).strftime("%Y-%m-%d %H:%M:%S")
+                    c.execute("INSERT INTO password_reset_tokens (user_id, token, created_at, expires_at) VALUES (?, ?, ?, ?)",
+                              (user[0], token, created_at, expires_at))
+                    conn.commit()
+                    reset_link = url_for('reset_password_confirm', token=token, _external=True)
+                    msg = MIMEText(f"Click the following link to reset your password: {reset_link}\nThis link expires in 1 hour.")
+                    msg['Subject'] = 'IFYBNG Password Reset'
+                    msg['From'] = EMAIL_ADDRESS
+                    msg['To'] = email
+                    with smtplib.SMTP(EMAIL_SERVER, EMAIL_PORT) as server:
+                        server.starttls()
+                        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+                        server.send_message(msg)
+                    flash("Password reset link sent to your email.")
+                else:
+                    flash("Email not found.")
+        except Exception as e:
+            logger.error(f"Error requesting password reset: {e}")
+            flash("Error requesting password reset.")
+        return redirect(url_for('reset_password'))
+    return render_template('reset_password.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password_confirm(token):
+    try:
+        with db_lock:
+            c = conn.cursor()
+            c.execute("SELECT user_id, expires_at FROM password_reset_tokens WHERE token=?", (token,))
+            token_data = c.fetchone()
+            if not token_data:
+                flash("Invalid or expired reset token.")
+                return redirect(url_for('login'))
+            user_id, expires_at = token_data
+            if datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S") < datetime.now(EU_TZ):
+                flash("Reset token has expired.")
+                c.execute("DELETE FROM password_reset_tokens WHERE token=?", (token,))
+                conn.commit()
+                return redirect(url_for('login'))
+            if request.method == 'POST':
+                new_password = request.form.get('new_password')
+                if len(new_password) < 8:
+                    flash("Password must be at least 8 characters.")
+                    return redirect(url_for('reset_password_confirm', token=token))
+                c.execute("UPDATE users SET password=? WHERE id=?", (generate_password_hash(new_password), user_id))
+                c.execute("DELETE FROM password_reset_tokens WHERE token=?", (token,))
+                conn.commit()
+                flash("Password reset successfully. Please login.")
+                return redirect(url_for('login'))
+            return render_template('reset_password_confirm.html', token=token)
+    except Exception as e:
+        logger.error(f"Error confirming password reset: {e}")
+        flash("Error confirming password reset.")
+        return redirect(url_for('login'))
+
 @app.route('/search', methods=['GET', 'POST'])
 def search():
     if 'user_id' not in session:
@@ -615,6 +992,17 @@ def search():
     if request.method == 'POST':
         column = request.form.get('column')
         value = request.form.get('value')
+        valid_columns = [
+            'id', 'time', 'action', 'symbol', 'price', 'open_price', 'close_price', 'volume',
+            'percent_change', 'stop_loss', 'take_profit', 'profit', 'total_profit', 'return_profit',
+            'total_return_profit', 'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e',
+            'diff2m', 'diff3k', 'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff',
+            'supertrend', 'stoch_rsi', 'stoch_k', 'stoch_d', 'obv', 'message', 'timeframe',
+            'order_id', 'strategy'
+        ]
+        if column not in valid_columns:
+            flash("Invalid search column.")
+            return redirect(url_for('search'))
         try:
             with db_lock:
                 c = conn.cursor()
@@ -622,17 +1010,58 @@ def search():
                 c.execute(query, (f"%{value}%",))
                 trades = [dict(zip([col[0] for col in c.description], row)) for row in c.fetchall()]
                 for trade in trades:
-                    for key in ['price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
-                                'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
-                                'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
-                                'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
-                                'stoch_rsi', 'stoch_k', 'stoch_d', 'obv']:
-                        trade[key] = float(trade[key]) if trade[key] is not None else 0.0
+                    for key in valid_columns:
+                        if key not in ['time', 'action', 'symbol', 'message', 'timeframe', 'order_id', 'strategy']:
+                            trade[key] = float(trade[key]) if trade[key] is not None else 0.0
+                if not trades:
+                    flash("No results found.")
                 return render_template('search.html', trades=trades, column=column, value=value)
         except Exception as e:
             logger.error(f"Error searching trades: {e}")
             flash("Error performing search.")
     return render_template('search.html', trades=[], column='', value='')
+
+@app.route('/status')
+def status():
+    status = "active" if bot_active else "stopped"
+    stop_time_str = stop_time.strftime("%Y-%m-%d %H:%M:%S") if stop_time else "N/A"
+    return jsonify({"status": status, "timeframe": TIMEFRAME, "stop_time": stop_time_str})
+
+@app.route('/performance')
+def performance():
+    return jsonify({"performance": get_performance()})
+
+@app.route('/trades')
+def trades():
+    if 'user_id' not in session:
+        return jsonify({"error": "Please login first."}), 401
+    global conn
+    start_time = time.time()
+    with db_lock:
+        try:
+            if conn is None:
+                if not setup_database(first_attempt=True):
+                    logger.error("Failed to reinitialize database for trades route")
+                    return jsonify({"error": "Database not initialized."}), 503
+            c = conn.cursor()
+            c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT 48")
+            trades = [dict(zip([col[0] for col in c.description], row)) for row in c.fetchall()]
+            numeric_fields = [
+                'price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
+                'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
+                'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
+                'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
+                'stoch_rsi', 'stoch_k', 'stoch_d', 'obv'
+            ]
+            for trade in trades:
+                for field in numeric_fields:
+                    trade[field] = float(trade[field]) if trade[field] is not None else 0.0
+            elapsed = time.time() - start_time
+            logger.debug(f"Fetched {len(trades)} trades for /trades endpoint in {elapsed:.3f}s")
+            return jsonify(trades)
+        except Exception as e:
+            logger.error(f"Error fetching trades: {e}")
+            return jsonify({"error": f"Failed to fetch trades: {str(e)}"}), 500
 
 def get_simulated_price(symbol=SYMBOL, exchange=exchange, timeframe=TIMEFRAME, retries=3, delay=5):
     global last_valid_price

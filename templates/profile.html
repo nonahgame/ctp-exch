@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Profile - IFYBNG-COM</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #d3d3d3;
+        }
+        .form-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #000;
+            color: white;
+            border-radius: 5px;
+        }
+        .form-container h2 {
+            color: #0000ff !important;
+        }
+        .form-container input, .form-container select, .form-container textarea {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+        .form-container button {
+            padding: 10px;
+            background-color: #0000ff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .form-container button:hover {
+            background-color: #0056b3;
+        }
+        .verify-btn {
+            background-color: #555;
+        }
+        .verify-btn:hover {
+            background-color: #777;
+        }
+        .flash {
+            color: red;
+            margin-bottom: 10px;
+        }
+        .profile-icon {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+        .profile-icon.complete { background-color: green; }
+        .profile-icon.incomplete { background-color: black; }
+        .profile-icon.warning { background-color: red; }
+        .profile-icon.id_uploaded { background-color: blue; }
+        .warning-message {
+            color: red;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <h2>Profile <span class="profile-icon {{ profile_status }}"></span></h2>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <p class="flash">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        {% if user.warning_message and user.warning_expiry and user.warning_expiry > current_time %}
+        <div class="warning-message">
+            <p>Warning: {{ user.warning_message }} (Expires: {{ user.warning_expiry }})</p>
+        </div>
+        {% endif %}
+        <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="update_profile">
+            <input type="text" name="first_name" placeholder="First Name" maxlength="50" value="{{ user.first_name or '' }}">
+            <input type="text" name="last_name" placeholder="Last Name" maxlength="50" value="{{ user.last_name or '' }}">
+            <input type="email" name="email" placeholder="Email Address" value="{{ user.email }}" disabled>
+            <input type="text" name="phone" placeholder="Phone Number" value="{{ user.phone }}" disabled>
+            <input type="text" name="age" placeholder="Age" maxlength="50" value="{{ user.age or '' }}">
+            <input type="text" name="country" placeholder="Country" maxlength="50" value="{{ user.country or '' }}">
+            <input type="text" name="state" placeholder="State" maxlength="50" value="{{ user.state or '' }}">
+            <textarea name="address" placeholder="Residential Address" maxlength="250">{{ user.address or '' }}</textarea>
+            <input type="text" name="occupation" placeholder="Occupation" maxlength="100" value="{{ user.occupation or '' }}">
+            <label>ID Card Front:</label>
+            {% if user.id_card_front %}
+                <p>Current: <a href="{{ url_for('static', filename=user.id_card_front.split('static/')[1]) }}" target="_blank">View</a></p>
+            {% endif %}
+            <input type="file" name="id_card_front" accept="image/*" capture="environment">
+            <label>ID Card Back:</label>
+            {% if user.id_card_back %}
+                <p>Current: <a href="{{ url_for('static', filename=user.id_card_back.split('static/')[1]) }}" target="_blank">View</a></p>
+            {% endif %}
+            <input type="file" name="id_card_back" accept="image/*" capture="environment">
+            <button type="submit">Update Profile</button>
+            {% if not user.email_verified or not user.phone_verified %}
+                <form method="POST" style="display:inline;">
+                    <input type="hidden" name="action" value="verify">
+                    <button type="submit" class="verify-btn">Verify Email/Phone</button>
+                </form>
+            {% endif %}
+        </form>
+        <p><a href="{{ url_for('reset_password') }}" style="color: #0000ff;">Forgot Password?</a></p>
+        <p><a href="{{ url_for('index') }}" style="color: #0000ff;">Back to Dashboard</a></p>
+    </div>
+</body>
+</html>

@@ -38,6 +38,15 @@
             color: red;
             margin-bottom: 10px;
         }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .checkbox-label input {
+            width: auto;
+            margin-right: 10px;
+        }
     </style>
 </head>
 <body>
@@ -65,6 +74,11 @@
             <input type="file" name="id_card_front" accept="image/*" capture="environment">
             <label>ID Card Back:</label>
             <input type="file" name="id_card_back" accept="image/*" capture="environment">
+            <!-- Modified: Added checkbox to skip verification -->
+            <div class="checkbox-label">
+                <input type="checkbox" name="skip_verification" id="skip_verification">
+                <label for="skip_verification">Skip email and phone verification (complete later)</label>
+            </div>
             <button type="submit">Register</button>
         </form>
         <p>Already have an account? <a href="{{ url_for('login') }}" style="color: #0000ff;">Login</a></p>

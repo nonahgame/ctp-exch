@@ -468,21 +468,8 @@ def index():
         try:
             if conn is None:
                 if not setup_database(first_attempt=True):
-                    logger.error("Failed to reinitialize database for index route")
-                    stop_time_str = stop_time.strftime("%Y-%m-%d %H:%M:%S") if stop_time else "N/A"
-                    current_time = datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")
-                    return render_template(
-                        'index.html',
-                        signal=None,
-                        status=status,
-                        timeframe=TIMEFRAME,
-                        trades=[],
-                        stop_time=stop_time_str,
-                        current_time=current_time,
-                        metrics={},
-                        user=None,
-                        profile_status='incomplete'
-                    )
+                    logger.critical("Failed to reinitialize database for index route")
+                    return "<h1>Error</h1><p>Database unavailable. Please try again later.</p>", 503
 
             c = conn.cursor()
             # Fetch the latest signal
@@ -517,14 +504,25 @@ def index():
             profile_status = 'incomplete'
             if 'user_id' in session:
                 c.execute("SELECT * FROM users WHERE id=?", (session['user_id'],))
-                user = c.fetchone()
-                if user:
-                    user = dict(zip([col[0] for col in c.description], user))
-                    is_complete = all([user['first_name'], user['last_name'], user['email'], user['phone'],
-                                       user['age'], user['country'], user['state'], user['address'],
-                                       user['occupation'], user['email_verified'], user['phone_verified']])
-                    has_id_cards = user['id_card_front'] and user['id_card_back']
-                    has_warning = user['warning_message'] and user['warning_expiry'] and datetime.strptime(user['warning_expiry'], "%Y-%m-%d %H:%M:%S") > datetime.now(EU_TZ)
+                user_row = c.fetchone()
+                if user_row:
+                    user = dict(zip([col[0] for col in c.description], user_row))
+                    logger.debug(f"User data: {user}")
+                    is_complete = all([
+                        user.get('first_name'), user.get('last_name'), user.get('email'), user.get('phone'),
+                        user.get('age'), user.get('country'), user.get('state'), user.get('address'),
+                        user.get('occupation'), user.get('email_verified'), user.get('phone_verified')
+                    ])
+                    has_id_cards = user.get('id_card_front') and user.get('id_card_back')
+                    has_warning = False
+                    try:
+                        if user.get('warning_message') and user.get('warning_expiry'):
+                            warning_expiry = datetime.strptime(user['warning_expiry'], "%Y-%m-%d %H:%M:%S")
+                            has_warning = warning_expiry > datetime.now(EU_TZ)
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"Error parsing warning_expiry for user {session['user_id']}: {e}")
+                        has_warning = False
+
                     if has_warning:
                         profile_status = 'warning'
                     elif is_complete:
@@ -533,6 +531,8 @@ def index():
                         profile_status = 'id_uploaded'
                     else:
                         profile_status = 'incomplete'
+                else:
+                    logger.warning(f"No user found for user_id: {session['user_id']}")
 
             # Get performance metrics
             metrics = get_performance_metrics()

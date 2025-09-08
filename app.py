@@ -697,26 +697,39 @@ def verify():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    logger.debug(f"Accessing /login, method={request.method}, session={session}")
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
+        logger.debug(f"Login attempt: email={email}")
         try:
             with db_lock:
+                if conn is None:
+                    logger.error("Database connection is None, attempting to reinitialize")
+                    if not setup_database():
+                        logger.critical("Failed to reinitialize database")
+                        flash("Database error. Please try again later.")
+                        return redirect(url_for('login'))
                 c = conn.cursor()
                 c.execute("SELECT id, password, status FROM users WHERE email=?", (email,))
                 user = c.fetchone()
+                logger.debug(f"User query result: {user}")
                 if user and check_password_hash(user[1], password):
                     if user[2] in ['active', 'pending_admin', 'pending']:
                         session['user_id'] = user[0]
+                        logger.info(f"Login successful for user_id={user[0]}")
                         flash("Login successful.")
                         return redirect(url_for('index'))
                     else:
+                        logger.warning(f"Login failed: invalid user status={user[2]}")
                         flash("Invalid email or password.")
                 else:
+                    logger.warning(f"Login failed: invalid credentials for email={email}")
                     flash("Invalid email or password.")
         except Exception as e:
             logger.error(f"Error during login: {e}")
             flash("Login failed. Please try again.")
+    logger.debug("Rendering login.html")
     return render_template('login.html')
 
 @app.route('/profile', methods=['GET', 'POST'])
@@ -817,11 +830,14 @@ def profile():
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin():
+    logger.debug(f"Accessing /admin, method={request.method}, session={session}")
     if 'user_id' not in session:
+        logger.warning("Unauthorized access to /admin, redirecting to login")
         flash("Please login first.")
         return redirect(url_for('login'))
     if request.method == 'POST':
         if request.form.get('action') == 'search_incomplete':
+            logger.debug("Performing incomplete profile search")
             try:
                 with db_lock:
                     c = conn.cursor()
@@ -838,6 +854,7 @@ def admin():
                                        'warning_message', 'warning_expiry'], row)) for row in c.fetchall()]
                     c.execute("SELECT id, admin_id, action, target_user_id, details, timestamp FROM admin_logs")
                     admin_logs = [dict(zip(['id', 'admin_id', 'action', 'target_user_id', 'details', 'timestamp'], row)) for row in c.fetchall()]
+                    logger.debug(f"Found {len(users)} incomplete profiles, {len(admin_logs)} admin logs")
                     return render_template('admin.html', users=users, admin_logs=admin_logs, search_type='incomplete')
             except Exception as e:
                 logger.error(f"Error searching incomplete profiles: {e}")
@@ -848,6 +865,7 @@ def admin():
             warning_message = request.form.get('warning_message')
             warning_days = int(request.form.get('warning_days', 7))
             warning_expiry = (datetime.now(EU_TZ) + timedelta(days=warning_days)).strftime("%Y-%m-%d %H:%M:%S")
+            logger.debug(f"Issuing warning to user_id={user_id}, message={warning_message}")
             try:
                 with db_lock:
                     c = conn.cursor()
@@ -856,6 +874,7 @@ def admin():
                     c.execute("INSERT INTO admin_logs (admin_id, action, target_user_id, details, timestamp) VALUES (?, ?, ?, ?, ?)",
                               (session['user_id'], 'warning', user_id, f"Issued warning: {warning_message}", datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")))
                     conn.commit()
+                    logger.info(f"Warning issued to user_id={user_id}")
                     flash(f"Warning issued to user {user_id}.")
                     return redirect(url_for('admin'))
             except Exception as e:
@@ -864,10 +883,13 @@ def admin():
                 return redirect(url_for('admin'))
         else:
             passphrase = request.form.get('passphrase')
+            logger.debug(f"Admin login attempt with passphrase")
             if passphrase != ADMIN_PASSPHRASE:
+                logger.warning("Invalid admin passphrase")
                 flash("Invalid admin passphrase.")
                 return redirect(url_for('admin'))
             session['is_admin'] = True
+            logger.info("Admin access granted")
             try:
                 with db_lock:
                     c = conn.cursor()
@@ -875,11 +897,13 @@ def admin():
                     users = [dict(zip(['id', 'first_name', 'last_name', 'email', 'phone', 'age', 'country', 'state', 'address', 'occupation', 'id_card_front', 'id_card_back', 'status', 'created_at', 'warning_message', 'warning_expiry'], row)) for row in c.fetchall()]
                     c.execute("SELECT id, admin_id, action, target_user_id, details, timestamp FROM admin_logs")
                     admin_logs = [dict(zip(['id', 'admin_id', 'action', 'target_user_id', 'details', 'timestamp'], row)) for row in c.fetchall()]
+                    logger.debug(f"Loaded {len(users)} users, {len(admin_logs)} admin logs")
                     return render_template('admin.html', users=users, admin_logs=admin_logs, search_type='all')
             except Exception as e:
                 logger.error(f"Error loading admin panel: {e}")
                 flash("Error loading admin panel.")
                 return redirect(url_for('index'))
+    logger.debug("Rendering admin_login.html")
     return render_template('admin_login.html')
 
 @app.route('/admin/action', methods=['POST'])

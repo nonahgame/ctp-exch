@@ -1,0 +1,131 @@
+<!-- templates/trade_record.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trade Records</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .search-form {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .search-form select, .search-form input {
+            padding: 8px;
+            margin: 5px;
+            font-size: 16px;
+        }
+        .search-form button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .search-form button:hover {
+            background-color: #45a049;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .pagination {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .pagination a {
+            margin: 0 10px;
+            text-decoration: none;
+            font-size: 18px;
+            color: #4CAF50;
+        }
+        .pagination a.disabled {
+            color: #ccc;
+            pointer-events: none;
+        }
+        .pagination a:hover:not(.disabled) {
+            color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Trade Records</h1>
+    <div class="search-form">
+        <form method="POST" action="{{ url_for('trade_record', page=page) }}">
+            <select name="column">
+                {% for col in columns %}
+                    <option value="{{ col }}">{{ col | replace('_', ' ') | title }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="value" placeholder="Enter search value" required>
+            <button type="submit">Search</button>
+        </form>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                {% for col in columns %}
+                    <th>{{ col | replace('_', ' ') | title }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for trade in trades %}
+                <tr>
+                    {% for col in columns %}
+                        <td>
+                            {% if col in numeric_fields %}
+                                {{ trade[col] | round(2) if trade[col] is not none else '' }}
+                            {% elif col == 'supertrend_trend' %}
+                                {{ 'Up' if trade[col] == 1 else 'Down' if trade[col] == 0 else '' }}
+                            {% else %}
+                                {{ trade[col] if trade[col] is not none else '' }}
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <div class="pagination">
+        {% if prev_page %}
+            <a href="{{ url_for('trade_record', page=prev_page) }}" title="Previous Page">⬅️</a>
+        {% else %}
+            <a class="disabled">⬅️</a>
+        {% endif %}
+        <span>Page {{ page }} of {{ total_pages }}</span>
+        {% if next_page %}
+            <a href="{{ url_for('trade_record', page=next_page) }}" title="Next Page">➡️</a>
+        {% else %}
+            <a class="disabled">➡️</a>
+        {% endif %}
+    </div>
+</body>
+</html>

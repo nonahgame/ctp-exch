@@ -187,7 +187,6 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(document).ready(function() {
-            // Load saved background preference
             const background = localStorage.getItem('background') || 'white';
             $('body').addClass(background);
         });
@@ -203,7 +202,7 @@
         <div class="search-form">
             <form method="POST" action="{{ url_for('trade_record', page=page) }}">
                 <select name="column">
-                    {% for col in columns %}
+                    {% for col, tag in column_tags %}
                         <option value="{{ col }}">{{ col | replace('_', ' ') | title }}</option>
                     {% endfor %}
                 </select>
@@ -215,8 +214,7 @@
             <table>
                 <thead>
                     <tr>
-                        {% set tags = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'aa', 'ab', 'ac', 'ad', 'ae', 'af', 'ag', 'ah', 'ai', 'aj', 'ak', 'al', 'am', 'an', 'ao', 'ap', 'aq'] %}
-                        {% for col, tag in columns|zip(tags) %}
+                        {% for col, tag in column_tags %}
                             <th><span class="column-tag">({{ tag }})</span> {{ col | replace('_', ' ') | title }}</th>
                         {% endfor %}
                     </tr>
@@ -224,7 +222,7 @@
                 <tbody>
                     {% for trade in trades %}
                         <tr>
-                            {% for col, tag in columns|zip(tags) %}
+                            {% for col, tag in column_tags %}
                                 <td>
                                     {% if col in numeric_fields %}
                                         {% set value = trade[col] | round(2) if trade[col] is not none else '' %}

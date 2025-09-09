@@ -1363,6 +1363,10 @@ def safe_float(val, default=0.0):
     except (ValueError, TypeError):
         return default
 
+def get_performance():
+    # Placeholder for performance calculation
+    return "Performance metrics placeholder"
+
 # Flask routes
 # Updated / route in app.py
 @app.route('/')
@@ -1386,8 +1390,8 @@ def index():
                         trades=[],
                         stop_time=stop_time_str,
                         current_time=current_time,
-                        background='white'  # Default background
-                    )
+                        background='white'
+                    ), 503
 
             c = conn.cursor()
             c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT 16")
@@ -1426,24 +1430,48 @@ def index():
                 trades=trades,
                 stop_time=stop_time_str,
                 current_time=current_time,
-                background='white'  # Default background, can be overridden by client-side storage
+                background='white'
             )
 
         except Exception as e:
             elapsed = time.time() - start_time
             logger.error(f"Error rendering index.html after {elapsed:.3f}s: {e}")
-            conn = None
-            return "<h1>Error</h1><p>Failed to load page. Please try again later.</p>", 500
+            return jsonify({"error": f"Internal server error: {str(e)}"}), 500
             
 @app.route('/status')
 def status():
-    status = "active" if bot_active else "stopped"
-    stop_time_str = stop_time.strftime("%Y-%m-%d %H:%M:%S") if stop_time else "N/A"
-    return jsonify({"status": status, "timeframe": TIMEFRAME, "stop_time": stop_time_str})
+    global bot_active, pause_start, pause_duration, stop_time
+    start_time = time.time()
+    try:
+        status = "active" if bot_active else (
+            f"paused for {int(pause_duration - (datetime.now(EU_TZ) - pause_start).total_seconds())} seconds"
+            if pause_start else "stopped"
+        )
+        stop_time_str = stop_time.strftime("%Y-%m-%d %H:%M:%S") if stop_time else "N/A"
+        elapsed = time.time() - start_time
+        logger.info(f"Fetched status in {elapsed:.3f}s: {status}")
+        return jsonify({
+            "status": status,
+            "stop_time": stop_time_str,
+            "current_time": datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        })
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.error(f"Error in /status route after {elapsed:.3f}s: {e}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 @app.route('/performance')
 def performance():
-    return jsonify({"performance": get_performance()})
+    start_time = time.time()
+    try:
+        perf_data = get_performance()
+        elapsed = time.time() - start_time
+        logger.info(f"Fetched performance data in {elapsed:.3f}s")
+        return jsonify({"performance": perf_data})
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.error(f"Error in /performance route after {elapsed:.3f}s: {e}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 @app.route('/trades')
 def trades():
@@ -1455,65 +1483,74 @@ def trades():
                 logger.warning("Database connection is None in trades route. Attempting to reinitialize.")
                 if not setup_database(first_attempt=True):
                     logger.error("Failed to reinitialize database for trades route")
-                    return jsonify({"error": "Database not initialized. Please try again later."}), 503
+                    return jsonify({"error": "Database unavailable. Please try again later."}), 503
+
             c = conn.cursor()
-            c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT 16")
-            trades = [dict(zip([col[0] for col in c.description], row)) for row in c.fetchall()]
+            c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT 100")
+            rows = c.fetchall()
+            columns = [col[0] for col in c.description]
+            trades = [dict(zip(columns, row)) for row in rows]
+
+            numeric_fields = [
+                'price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
+                'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
+                'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
+                'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
+                'stoch_rsi', 'stoch_k', 'stoch_d', 'obv'
+            ]
+
+            for trade in trades:
+                for field in numeric_fields:
+                    trade[field] = safe_float(trade.get(field))
+
             elapsed = time.time() - start_time
-            logger.debug(f"Fetched {len(trades)} trades for /trades endpoint in {elapsed:.3f}s")
+            logger.info(f"Fetched trades for /trades: count={len(trades)}, query_time={elapsed:.3f}s")
             return jsonify(trades)
+
+        except sqlite3.OperationalError as e:
+            elapsed = time.time() - start_time
+            logger.error(f"Database error in /trades route after {elapsed:.3f}s: {e}")
+            return jsonify({"error": f"Database error: {str(e)}"}), 500
         except Exception as e:
             elapsed = time.time() - start_time
-            logger.error(f"Error fetching trades after {elapsed:.3f}s: {e}")
-            conn = None
-            return jsonify({"error": f"Failed to fetch trades: {str(e)}"}), 500
+            logger.error(f"Error in /trades route after {elapsed:.3f}s: {e}")
+            return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
 @app.route('/trade_record', methods=['GET', 'POST'])
 def trade_record():
     global conn
     start_time = time.time()
+    page = int(request.args.get('page', 1))
+    per_page = 50
+    offset = (page - 1) * per_page
+    search_column = request.form.get('column') if request.method == 'POST' else None
+    search_value = request.form.get('value') if request.method == 'POST' else None
+
     with db_lock:
         try:
             if conn is None:
                 logger.warning("Database connection is None in trade_record route. Attempting to reinitialize.")
                 if not setup_database(first_attempt=True):
                     logger.error("Failed to reinitialize database for trade_record route")
-                    return "<h1>Error</h1><p>Database unavailable. Please try again later.</p>", 503
+                    return jsonify({"error": "Database unavailable. Please try again later."}), 503
 
             c = conn.cursor()
-            page = int(request.args.get('page', 1))
-            per_page = 50
-            offset = (page - 1) * per_page
+            columns = [
+                'id', 'time', 'action', 'symbol', 'price', 'open_price', 'close_price', 'volume',
+                'percent_change', 'stop_loss', 'take_profit', 'profit', 'total_profit',
+                'return_profit', 'total_return_profit', 'message', 'timeframe', 'order_id',
+                'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
+                'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
+                'supertrend_trend', 'stoch_rsi', 'stoch_k', 'stoch_d', 'obv', 'strategy'
+            ]
 
-            if request.method == 'POST':
-                column = request.form.get('column')
-                value = request.form.get('value')
-                logger.debug(f"Search request: column={column}, value={value}")
-                if column and value:
-                    try:
-                        if column in ['price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
-                                      'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
-                                      'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
-                                      'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
-                                      'stoch_rsi', 'stoch_k', 'stoch_d', 'obv']:
-                            value = float(value)
-                            query = f"SELECT * FROM trades WHERE {column} = ? ORDER BY time DESC LIMIT ? OFFSET ?"
-                            c.execute(query, (value, per_page, offset))
-                        else:
-                            query = f"SELECT * FROM trades WHERE {column} LIKE ? ORDER BY time DESC LIMIT ? OFFSET ?"
-                            c.execute(query, (f'%{value}%', per_page, offset))
-                        rows = c.fetchall()
-                    except Exception as e:
-                        logger.error(f"Error executing search query: {e}")
-                        return "<h1>Error</h1><p>Invalid search parameters.</p>", 400
-                else:
-                    logger.warning("Invalid search parameters")
-                    return "<h1>Error</h1><p>Invalid search parameters.</p>", 400
+            if request.method == 'POST' and search_column and search_value:
+                query = f"SELECT * FROM trades WHERE {search_column} LIKE ? ORDER BY time DESC LIMIT ? OFFSET ?"
+                c.execute(query, (f'%{search_value}%', per_page, offset))
             else:
-                logger.debug("Fetching trades with pagination")
                 c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT ? OFFSET ?", (per_page, offset))
-                rows = c.fetchall()
 
-            columns = [col[0] for col in c.description]
+            rows = c.fetchall()
             trades = [dict(zip(columns, row)) for row in rows]
 
             numeric_fields = [
@@ -1530,35 +1567,37 @@ def trade_record():
 
             c.execute("SELECT COUNT(*) FROM trades")
             total_trades = c.fetchone()[0]
-            #total_pages = (total_trades // per_page) + (1 if total_trades % per_page else
-            total_pages = (total_trades // per_page) + (1 if total_trades % per_page else 0)
+            total_pages = (total_trades + per_page - 1) // per_page
 
-            # Prepare pagination data
             prev_page = page - 1 if page > 1 else None
             next_page = page + 1 if page < total_pages else None
 
             elapsed = time.time() - start_time
             logger.info(
-                f"Rendering trade_record.html: page={page}, per_page={per_page}, total_trades={total_trades}, "
-                f"total_pages={total_pages}, trades_fetched={len(trades)}, query_time={elapsed:.3f}s"
+                f"Rendering trade_record.html: page={page}, trades={len(trades)}, "
+                f"total_pages={total_pages}, query_time={elapsed:.3f}s"
             )
 
             return render_template(
                 'trade_record.html',
                 trades=trades,
+                columns=columns,
                 page=page,
                 total_pages=total_pages,
                 prev_page=prev_page,
                 next_page=next_page,
-                columns=columns,
+                background='white',
                 numeric_fields=numeric_fields
             )
 
+        except sqlite3.OperationalError as e:
+            elapsed = time.time() - start_time
+            logger.error(f"Database error in trade_record route after {elapsed:.3f}s: {e}")
+            return jsonify({"error": f"Database error: {str(e)}"}), 500
         except Exception as e:
             elapsed = time.time() - start_time
-            logger.error(f"Error rendering trade_record.html after {elapsed:.3f}s: {e}")
-            conn = None
-            return "<h1>Error</h1><p>Failed to load trade records. Please try again later.</p>", 500
+            logger.error(f"Error in trade_record route after {elapsed:.3f}s: {e}")
+            return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 # Start background threads
 def start_background_threads():
@@ -1600,6 +1639,9 @@ def cleanup():
                 conn = None
 
 atexit.register(cleanup)
+
+# Initialize database
+setup_database()
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 4000))

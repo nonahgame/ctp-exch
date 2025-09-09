@@ -1357,15 +1357,11 @@ Total Return Profit: {total_return_profit_db:.2f}
             conn = None
             return f"Error fetching trade counts: {str(e)}"
 
-def safe_float(val, default=0.0):
+def safe_float(val, default=0.00):
     try:
         return float(val)
     except (ValueError, TypeError):
         return default
-
-def get_performance():
-    # Placeholder for performance calculation
-    return "Performance metrics placeholder"
 
 # Flask routes
 # Updated / route in app.py
@@ -1543,10 +1539,21 @@ def trade_record():
                 'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
                 'supertrend_trend', 'stoch_rsi', 'stoch_k', 'stoch_d', 'obv', 'strategy'
             ]
+            tags = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+                    'aa', 'ab', 'ac', 'ad', 'ae', 'af', 'ag', 'ah', 'ai', 'aj', 'ak', 'al', 'am', 'an', 'ao', 'ap', 'aq']
+            column_tags = list(zip(columns, tags))  # Pre-zip columns and tags
 
             if request.method == 'POST' and search_column and search_value:
-                query = f"SELECT * FROM trades WHERE {search_column} LIKE ? ORDER BY time DESC LIMIT ? OFFSET ?"
-                c.execute(query, (f'%{search_value}%', per_page, offset))
+                if search_column in ['price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
+                                    'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
+                                    'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
+                                    'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
+                                    'stoch_rsi', 'stoch_k', 'stoch_d', 'obv']:
+                    query = f"SELECT * FROM trades WHERE {search_column} = ? ORDER BY time DESC LIMIT ? OFFSET ?"
+                    c.execute(query, (float(search_value), per_page, offset))
+                else:
+                    query = f"SELECT * FROM trades WHERE {search_column} LIKE ? ORDER BY time DESC LIMIT ? OFFSET ?"
+                    c.execute(query, (f'%{search_value}%', per_page, offset))
             else:
                 c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT ? OFFSET ?", (per_page, offset))
 
@@ -1581,7 +1588,7 @@ def trade_record():
             return render_template(
                 'trade_record.html',
                 trades=trades,
-                columns=columns,
+                column_tags=column_tags,  # Pass pre-zipped column_tags
                 page=page,
                 total_pages=total_pages,
                 prev_page=prev_page,

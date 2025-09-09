@@ -1,0 +1,273 @@
+<!-- templates/trade_record.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trade Records</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        body.white {
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        body.black {
+            background-color: #1a1a1a;
+            color: #fff;
+        }
+        h1, h2 {
+            text-align: center;
+        }
+        body.white h1, body.white h2 {
+            color: #333;
+        }
+        body.black h1, body.black h2 {
+            color: #1e90ff;
+        }
+        .navbar {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        body.white .navbar {
+            background-color: #4CAF50;
+        }
+        body.black .navbar {
+            background-color: #333;
+        }
+        .navbar a {
+            margin: 0 15px;
+            text-decoration: none;
+            font-size: 16px;
+        }
+        body.white .navbar a {
+            color: white;
+        }
+        body.black .navbar a {
+            color: #1e90ff;
+        }
+        .navbar a:hover {
+            text-decoration: underline;
+        }
+        .search-form {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .search-form select, .search-form input {
+            padding: 8px;
+            margin: 5px;
+            font-size: 16px;
+        }
+        body.white .search-form select, body.white .search-form input {
+            background-color: white;
+            color: #333;
+        }
+        body.black .search-form select, body.black .search-form input {
+            background-color: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+        }
+        .search-form button {
+            padding: 8px 16px;
+            border: none;
+            cursor: pointer;
+        }
+        body.white .search-form button {
+            background-color: #4CAF50;
+            color: white;
+        }
+        body.black .search-form button {
+            background-color: #333;
+            color: #1e90ff;
+            border: 1px solid #444;
+        }
+        .search-form button:hover {
+            opacity: 0.9;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid;
+        }
+        body.white th {
+            background-color: #4CAF50;
+            color: white;
+            border-color: #ddd;
+        }
+        body.black th {
+            background-color: #333;
+            color: #1e90ff;
+            border-color: #444;
+        }
+        body.white tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        body.black tr:nth-child(even) {
+            background-color: #222;
+        }
+        body.white tr:hover {
+            background-color: #f1f1f1;
+        }
+        body.black tr:hover {
+            background-color: #333;
+        }
+        .pagination {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .pagination a {
+            margin: 0 10px;
+            text-decoration: none;
+            font-size: 18px;
+        }
+        body.white .pagination a {
+            color: #4CAF50;
+        }
+        body.black .pagination a {
+            color: #1e90ff;
+        }
+        .pagination a.disabled {
+            color: #ccc;
+            pointer-events: none;
+        }
+        body.white .pagination a:hover:not(.disabled) {
+            color: #45a049;
+        }
+        body.black .pagination a:hover:not(.disabled) {
+            color: #63b8ff;
+        }
+        .column-tag {
+            font-weight: bold;
+        }
+        body.white .column-tag {
+            color: #ff0;
+        }
+        body.black .column-tag {
+            color: #a52a2a;
+        }
+        .number-positive, body.black .buy, body.black .up {
+            color: #00ff00;
+        }
+        .number-negative, body.black .sell, body.black .down {
+            color: #ff0000;
+        }
+        .number-neutral, body.black .hold {
+            color: #ffffff;
+        }
+        body.white .number-positive, body.white .number-negative, body.white .buy, body.white .sell,
+        body.white .up, body.white .down, body.white .hold, body.white .number-neutral {
+            color: inherit;
+        }
+        .error {
+            text-align: center;
+            color: #666;
+        }
+        body.black .error {
+            color: #ccc;
+        }
+        @media (max-width: 600px) {
+            table, .navbar a, .search-form select, .search-form input, .search-form button {
+                font-size: 14px;
+            }
+            .section {
+                padding: 10px;
+            }
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Load saved background preference
+            const background = localStorage.getItem('background') || 'white';
+            $('body').addClass(background);
+        });
+    </script>
+</head>
+<body class="{{ background }}">
+    <div class="navbar">
+        <a href="{{ url_for('index') }}">Dashboard</a>
+        <a href="{{ url_for('trade_record', page=1) }}">Trade Records</a>
+    </div>
+    <div class="container">
+        <h1>Trade Records</h1>
+        <div class="search-form">
+            <form method="POST" action="{{ url_for('trade_record', page=page) }}">
+                <select name="column">
+                    {% for col in columns %}
+                        <option value="{{ col }}">{{ col | replace('_', ' ') | title }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="value" placeholder="Enter search value" required>
+                <button type="submit">Search</button>
+            </form>
+        </div>
+        {% if trades %}
+            <table>
+                <thead>
+                    <tr>
+                        {% set tags = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', 'aa', 'ab', 'ac', 'ad', 'ae', 'af', 'ag', 'ah', 'ai', 'aj', 'ak', 'al', 'am', 'an', 'ao', 'ap', 'aq'] %}
+                        {% for col, tag in columns|zip(tags) %}
+                            <th><span class="column-tag">({{ tag }})</span> {{ col | replace('_', ' ') | title }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for trade in trades %}
+                        <tr>
+                            {% for col, tag in columns|zip(tags) %}
+                                <td>
+                                    {% if col in numeric_fields %}
+                                        {% set value = trade[col] | round(2) if trade[col] is not none else '' %}
+                                        <span class="column-tag">({{ tag }})</span>
+                                        <span class="{% if value and value > 0 %}number-positive{% elif value and value < 0 %}number-negative{% else %}number-neutral{% endif %}">
+                                            {{ value }}
+                                        </span>
+                                    {% elif col == 'supertrend_trend' %}
+                                        <span class="column-tag">({{ tag }})</span>
+                                        <span class="{% if trade[col] == 1 %}up{% elif trade[col] == 0 %}down{% else %}number-neutral{% endif %}">
+                                            {{ 'Up' if trade[col] == 1 else 'Down' if trade[col] == 0 else '' }}
+                                        </span>
+                                    {% elif col == 'action' %}
+                                        <span class="column-tag">({{ tag }})</span>
+                                        <span class="{{ trade[col] | lower if trade[col] else 'number-neutral' }}">
+                                            {{ trade[col] if trade[col] is not none else '' }}
+                                        </span>
+                                    {% else %}
+                                        <span class="column-tag">({{ tag }})</span>
+                                        {{ trade[col] if trade[col] is not none else '' }}
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="error">No trades found.</p>
+        {% endif %}
+        <div class="pagination">
+            {% if prev_page %}
+                <a href="{{ url_for('trade_record', page=prev_page) }}" title="Previous Page">⬅️</a>
+            {% else %}
+                <a class="disabled">⬅️</a>
+            {% endif %}
+            <span>Page {{ page }} of {{ total_pages }}</span>
+            {% if next_page %}
+                <a href="{{ url_for('trade_record', page=next_page) }}" title="Next Page">➡️</a>
+            {% else %}
+                <a class="disabled">➡️</a>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

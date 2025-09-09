@@ -1,4 +1,4 @@
-<!-- templates/index.html -->
+<!-- templates/index.html (Unchanged but included for completeness) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -178,12 +178,10 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         $(document).ready(function() {
-            // Load saved background preference
             const background = localStorage.getItem('background') || 'white';
             $('body').addClass(background);
             updateButtonStates(background);
 
-            // Background toggle
             $('.background-toggle button').click(function() {
                 const newBackground = $(this).data('background');
                 $('body').removeClass('white black').addClass(newBackground);
@@ -197,9 +195,7 @@
                 });
             }
 
-            // Function to fetch and update data
             function fetchData() {
-                // Fetch trades
                 $.getJSON('/trades').done(function(data) {
                     if (data.error) {
                         $('#trades').html('<p class="error">Error loading trades: ' + data.error + '</p>');
@@ -236,7 +232,6 @@
                     $('#trades').html('<p class="error">Failed to load trades: ' + textStatus + ' - ' + errorThrown + '</p>');
                 });
 
-                // Fetch performance
                 $.getJSON('/performance').done(function(data) {
                     if (data.error) {
                         $('#performance').html('<p class="error">Error loading performance: ' + data.error + '</p>');
@@ -247,7 +242,6 @@
                     $('#performance').html('<p class="error">Failed to load performance: ' + textStatus + ' - ' + errorThrown + '</p>');
                 });
 
-                // Fetch status
                 $.getJSON('/status').done(function(data) {
                     if (data.error) {
                         $('#status').html('<p class="error">Error loading status: ' + data.error + '</p>');
@@ -262,10 +256,7 @@
                 });
             }
 
-            // Initial data fetch
             fetchData();
-
-            // Auto-refresh every 60 seconds
             setInterval(fetchData, 60000);
         });
     </script>

@@ -1597,13 +1597,13 @@ def trade_record():
                 numeric_fields=numeric_fields
             )
     # ... (previous code unchanged until trades are fetched)
-    trades = [dict(zip(columns, row)) for row in rows]
+    #trades = [dict(zip(columns, row)) for row in rows]
     
     # Debug supertrend_trend values
-    for trade in trades:
-        logger.debug(f"Trade ID {trade['id']}: supertrend_trend={trade['supertrend_trend']}")
-        for field in numeric_fields:
-            trade[field] = safe_float(trade.get(field))
+    #for trade in trades:
+    #    logger.debug(f"Trade ID {trade['id']}: supertrend_trend={trade['supertrend_trend']}")
+    #    for field in numeric_fields:
+    #        trade[field] = safe_float(trade.get(field))
     # ... (rest of the route unchanged)
         
         except sqlite3.OperationalError as e:

@@ -1565,7 +1565,7 @@ def trade_record():
                 'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
                 'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
                 'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
-                'stoch_rsi', 'stoch_k', 'stoch_d', 'obv'
+                'supertrend_trend', 'stoch_rsi', 'stoch_k', 'stoch_d', 'obv'
             ]
 
             for trade in trades:
@@ -1596,7 +1596,16 @@ def trade_record():
                 background='white',
                 numeric_fields=numeric_fields
             )
-
+    # ... (previous code unchanged until trades are fetched)
+    trades = [dict(zip(columns, row)) for row in rows]
+    
+    # Debug supertrend_trend values
+    for trade in trades:
+        logger.debug(f"Trade ID {trade['id']}: supertrend_trend={trade['supertrend_trend']}")
+        for field in numeric_fields:
+            trade[field] = safe_float(trade.get(field))
+    # ... (rest of the route unchanged)
+        
         except sqlite3.OperationalError as e:
             elapsed = time.time() - start_time
             logger.error(f"Database error in trade_record route after {elapsed:.3f}s: {e}")

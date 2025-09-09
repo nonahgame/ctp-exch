@@ -1,0 +1,319 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        body.white {
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        body.black {
+            background-color: #1a1a1a;
+            color: #fff;
+        }
+        h1, h2 {
+            text-align: center;
+        }
+        body.white h1, body.white h2 {
+            color: #333;
+        }
+        body.black h1, body.black h2 {
+            color: #1e90ff !important;
+        }
+        .navbar {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        body.white .navbar {
+            background-color: #4CAF50;
+        }
+        body.black .navbar {
+            background-color: #333;
+        }
+        .navbar a {
+            margin: 0 15px;
+            text-decoration: none;
+            font-size: 16px;
+        }
+        body.white .navbar a {
+            color: white;
+        }
+        body.black .navbar a {
+            color: #1e90ff;
+        }
+        .navbar a:hover {
+            text-decoration: underline;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        body.white .section {
+            background-color: white;
+        }
+        body.black .section {
+            background-color: #2a2a2a;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid;
+        }
+        body.white th {
+            background-color: #4CAF50;
+            color: white;
+            border-color: #ddd;
+        }
+        body.black th {
+            background-color: #333;
+            color: #1e90ff;
+            border-color: #444;
+        }
+        body.white tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        body.black tr:nth-child(even) {
+            background-color: #222;
+        }
+        body.white tr:hover {
+            background-color: #f1f1f1;
+        }
+        body.black tr:hover {
+            background-color: #333;
+        }
+        .pagination {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .pagination a {
+            margin: 0 10px;
+            text-decoration: none;
+            font-size: 18px;
+        }
+        body.white .pagination a {
+            color: #4CAF50;
+        }
+        body.black .pagination a {
+            color: #1e90ff;
+        }
+        .pagination a.disabled {
+            color: #ccc;
+            pointer-events: none;
+        }
+        body.white .pagination a:hover:not(.disabled) {
+            color: #45a049;
+        }
+        body.black .pagination a:hover:not(.disabled) {
+            color: #63b8ff;
+        }
+        .loading, .error {
+            text-align: center;
+            color: #666;
+        }
+        body.black .loading, body.black .error {
+            color: #ccc;
+        }
+        body.black .number-positive, body.black .buy, body.black .up {
+            color: #00ff00 !important;
+        }
+        body.black .number-negative, body.black .sell, body.black .down {
+            color: #ff0000 !important;
+        }
+        body.black .number-neutral, body.black .hold {
+            color: #ffffff !important;
+        }
+        body.white .number-positive, body.white .number-negative, body.white .buy, body.white .sell,
+        body.white .up, body.white .down, body.white .hold, body.white .number-neutral {
+            color: inherit !important;
+        }
+        .background-toggle {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .background-toggle button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            cursor: pointer;
+        }
+        body.white .background-toggle button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+        body.black .background-toggle button {
+            background-color: #333;
+            color: #1e90ff;
+            border: 1px solid #444;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        @media (max-width: 600px) {
+            table, .navbar a {
+                font-size: 14px;
+            }
+            .section {
+                padding: 10px;
+            }
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            const background = localStorage.getItem('background') || 'white';
+            $('body').addClass(background);
+            updateButtonStates(background);
+
+            $('.background-toggle button').click(function() {
+                const newBackground = $(this).data('background');
+                $('body').removeClass('white black').addClass(newBackground);
+                localStorage.setItem('background', newBackground);
+                updateButtonStates(newBackground);
+            });
+
+            function updateButtonStates(background) {
+                $('.background-toggle button').each(function() {
+                    $(this).prop('disabled', $(this).data('background') === background);
+                });
+            }
+
+            function fetchData() {
+                $.getJSON('/trades').done(function(data) {
+                    if (data.error) {
+                        $('#trades').html('<p class="error">Error loading trades: ' + data.error + '</p>');
+                        return;
+                    }
+                    let html = '<table><thead><tr>';
+                    const columns = ['time', 'action', 'symbol', 'price', 'profit', 'total_profit', 'message'];
+                    columns.forEach(col => {
+                        html += '<th>' + col.replace('_', ' ').toUpperCase() + '</th>';
+                    });
+                    html += '</tr></thead><tbody>';
+                    data.slice(0, 10).forEach(trade => {  // Limit to 10 rows
+                        html += '<tr>';
+                        columns.forEach(col => {
+                            let value = trade[col];
+                            let className = '';
+                            if (['price', 'profit', 'total_profit'].includes(col) && value != null) {
+                                value = Number(value).toFixed(2);
+                                if (Number(value) > 0) className = 'number-positive';
+                                else if (Number(value) < 0) className = 'number-negative';
+                                else className = 'number-neutral';
+                            } else if (col === 'action' && value) {
+                                className = value.toLowerCase();
+                            } else if (value == null) {
+                                value = '';
+                            }
+                            html += '<td class="' + className + '">' + value + '</td>';
+                        });
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    $('#trades').html(html);
+                }).fail(function(jqXHR, textStatus, errorThrown) {
+                    $('#trades').html('<p class="error">Failed to load trades: ' + textStatus + ' - ' + errorThrown + '</p>');
+                });
+
+                $.getJSON('/performance').done(function(data) {
+                    if (data.error) {
+                        $('#performance').html('<p class="error">Error loading performance: ' + data.error + '</p>');
+                        return;
+                    }
+                    $('#performance').html('<pre>' + data.performance + '</pre>');
+                }).fail(function(jqXHR, textStatus, errorThrown) {
+                    $('#performance').html('<p class="error">Failed to load performance: ' + textStatus + ' - ' + errorThrown + '</p>');
+                });
+
+                $.getJSON('/status').done(function(data) {
+                    if (data.error) {
+                        $('#status').html('<p class="error">Error loading status: ' + data.error + '</p>');
+                        return;
+                    }
+                    let html = '<p><strong>Status:</strong> <span class="' + data.status.split(' ')[0].toLowerCase() + '">' + data.status + '</span></p>';
+                    html += '<p><strong>Current Time:</strong> ' + data.current_time + '</p>';
+                    html += '<p><strong>Stop Time:</strong> ' + data.stop_time + '</p>';
+                    $('#status').html(html);
+                }).fail(function(jqXHR, textStatus, errorThrown) {
+                    $('#status').html('<p class="error">Failed to load status: ' + textStatus + ' - ' + errorThrown + '</p>');
+                });
+            }
+
+            fetchData();
+            setInterval(fetchData, 60000);
+        });
+    </script>
+</head>
+<body class="{{ background }}">
+    <div class="background-toggle">
+        <button data-background="white">White Background</button>
+        <button data-background="black">Black Background</button>
+    </div>
+    <div class="navbar">
+        <a href="{{ url_for('index') }}">Dashboard</a>
+        <a href="{{ url_for('trade_record', page=1) }}">Trade Records</a>
+    </div>
+    <div class="container">
+        <h1>Trading Bot Dashboard</h1>
+        
+        <div class="section signal">
+            <h2>Latest Signal</h2>
+            {% if signal %}
+                <table>
+                    <tr><th>Time</th><td>{{ signal.time }}</td></tr>
+                    <tr><th>Action</th><td class="{% if signal.action %}{{ signal.action | lower }}{% else %}number-neutral{% endif %}">{{ signal.action | upper if signal.action else '' }}</td></tr>
+                    <tr><th>Symbol</th><td>{{ signal.symbol }}</td></tr>
+                    <tr><th>Price</th><td class="{% if signal.price > 0 %}number-positive{% elif signal.price < 0 %}number-negative{% else %}number-neutral{% endif %}">{{ signal.price | round(2) }}</td></tr>
+                    <tr><th>Profit</th><td class="{% if signal.profit > 0 %}number-positive{% elif signal.profit < 0 %}number-negative{% else %}number-neutral{% endif %}">{{ signal.profit | round(2) if signal.profit is not none else '' }}</td></tr>
+                    <tr><th>Total Profit</th><td class="{% if signal.total_profit > 0 %}number-positive{% elif signal.total_profit < 0 %}number-negative{% else %}number-neutral{% endif %}">{{ signal.total_profit | round(2) if signal.total_profit is not none else '' }}</td></tr>
+                    <tr><th>Message</th><td>{{ signal.message if signal.message is not none else '' }}</td></tr>
+                    <tr><th>Timeframe</th><td>{{ signal.timeframe }}</td></tr>
+                    <tr><th>Order ID</th><td>{{ signal.order_id if signal.order_id else '' }}</td></tr>
+                </table>
+            {% else %}
+                <p>No signals available.</p>
+            {% endif %}
+        </div>
+
+        <div class="section status" id="status">
+            <h2>Bot Status</h2>
+            <p class="loading">Loading status...</p>
+        </div>
+
+        <div class="section performance" id="performance">
+            <h2>Performance Metrics</h2>
+            <p class="loading">Loading performance data...</p>
+        </div>
+
+        <div class="section trades" id="trades">
+            <h2>Recent Trades</h2>
+            <p class="loading">Loading trades...</p>
+        </div>
+
+        <div class="pagination">
+            <a href="{{ url_for('trade_record', page=1) }}">View All Trades ➡️</a>
+        </div>
+    </div>
+</body>
+</html>

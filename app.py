@@ -1364,6 +1364,7 @@ def safe_float(val, default=0.0):
         return default
 
 # Flask routes
+# Updated / route in app.py
 @app.route('/')
 def index():
     global conn, stop_time
@@ -1384,7 +1385,8 @@ def index():
                         timeframe=TIMEFRAME,
                         trades=[],
                         stop_time=stop_time_str,
-                        current_time=current_time
+                        current_time=current_time,
+                        background='white'  # Default background
                     )
 
             c = conn.cursor()
@@ -1423,7 +1425,8 @@ def index():
                 timeframe=TIMEFRAME,
                 trades=trades,
                 stop_time=stop_time_str,
-                current_time=current_time
+                current_time=current_time,
+                background='white'  # Default background, can be overridden by client-side storage
             )
 
         except Exception as e:
@@ -1431,7 +1434,7 @@ def index():
             logger.error(f"Error rendering index.html after {elapsed:.3f}s: {e}")
             conn = None
             return "<h1>Error</h1><p>Failed to load page. Please try again later.</p>", 500
-
+            
 @app.route('/status')
 def status():
     status = "active" if bot_active else "stopped"

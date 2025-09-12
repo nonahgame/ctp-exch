@@ -26,7 +26,7 @@
             color: #333;
         }
         body.black h1, body.black h2 {
-            color: #1e90ff !important;
+            color: #1e90ff !important; /* Blue for headings in black mode */
         }
         .navbar {
             padding: 10px;
@@ -53,6 +53,25 @@
         }
         .navbar a:hover {
             text-decoration: underline;
+        }
+        .background-toggle {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .background-toggle button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            cursor: pointer;
+        }
+        body.white .background-toggle button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+        }
+        body.black .background-toggle button {
+            background-color: #333;
+            color: #1e90ff;
+            border: 1px solid #444;
         }
         .search-form {
             margin-bottom: 20px;
@@ -93,6 +112,7 @@
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
         th, td {
             padding: 10px;
@@ -150,23 +170,23 @@
             font-weight: bold;
         }
         body.white .column-tag {
-            color: #ff0 !important;
+            color: #ff0 !important; /* Yellow tags in white mode */
         }
         body.black .column-tag {
-            color: #a52a2a !important;
+            color: #a52a2a !important; /* Brown tags in black mode */
         }
         body.black .number-positive, body.black .buy, body.black .up {
-            color: #00ff00 !important;
+            color: #00ff00 !important; /* Green for positive, buy, up */
         }
         body.black .number-negative, body.black .sell, body.black .down {
-            color: #ff0000 !important;
+            color: #ff0000 !important; /* Red for negative, sell, down */
         }
         body.black .number-neutral, body.black .hold {
-            color: #ffffff !important;
+            color: #ffffff !important; /* White for neutral, hold */
         }
         body.white .number-positive, body.white .number-negative, body.white .buy, body.white .sell,
         body.white .up, body.white .down, body.white .hold, body.white .number-neutral {
-            color: inherit !important;
+            color: inherit !important; /* Default colors in white mode */
         }
         .error {
             text-align: center;
@@ -186,10 +206,28 @@
         $(document).ready(function() {
             const background = localStorage.getItem('background') || 'white';
             $('body').addClass(background);
+            updateButtonStates(background);
+
+            $('.background-toggle button').click(function() {
+                const newBackground = $(this).data('background');
+                $('body').removeClass('white black').addClass(newBackground);
+                localStorage.setItem('background', newBackground);
+                updateButtonStates(newBackground);
+            });
+
+            function updateButtonStates(background) {
+                $('.background-toggle button').each(function() {
+                    $(this).prop('disabled', $(this).data('background') === background);
+                });
+            }
         });
     </script>
 </head>
 <body class="{{ background }}">
+    <div class="background-toggle">
+        <button data-background="white">White Background</button>
+        <button data-background="black">Black Background</button>
+    </div>
     <div class="navbar">
         <a href="{{ url_for('index') }}">Dashboard</a>
         <a href="{{ url_for('trade_record', page=1) }}">Trade Records</a>
@@ -220,35 +258,52 @@
                     {% for trade in trades %}
                         <tr>
                             {% for col, tag in column_tags %}
-                                <td data-column="{{ col }}" data-value="{{ trade[col] if trade[col] is not none else '' }}">
+                                <td>
+                                    <span class="column-tag">({{ tag }})</span>
                                     {% if col in numeric_fields %}
                                         {% set value = trade[col] | round(2) if trade[col] is not none else '' %}
-                                        <span class="column-tag">({{ tag }})</span>
                                         <span class="{% if value and value > 0 %}number-positive{% elif value and value < 0 %}number-negative{% else %}number-neutral{% endif %}">
                                             {{ value }}
                                         </span>
                                     {% elif col == 'supertrend_trend' %}
-                                        <span class="column-tag">({{ tag }})</span>
-                                        {% set trend = 'Up' if trade[col] == 1 else 'Down' if trade[col] == 0 else 'None' %}
-                                        <span class="{% if trade[col] == 1 %}up{% elif trade[col] == 0 %}down{% else %}number-neutral{% endif %}">
-                                            {{ trend }}
-                                        </span>
+                                        {% set st_value = trade[col] %}
+                                        {% if st_value is string %}
+                                            {% if st_value == 'Up' %}
+                                                <span class="up">{{ st_value }}</span>
+                                            {% elif st_value == 'Down' %}
+                                                <span class="down">{{ st_value }}</span>
+                                            {% else %}
+                                                <span class="number-neutral">None</span>
+                                            {% endif %}
+                                        {% else %}
+                                            {% if st_value == 1 %}
+                                                <span class="up">Up</span>
+                                            {% elif st_value == 0 %}
+                                                <span class="down">Down</span>
+                                            {% else %}
+                                                <span class="number-neutral">None</span>
+                                            {% endif %}
+                                        {% endif %}
                                     {% elif col == 'action' %}
-                                        <span class="column-tag">({{ tag }})</span>
-                                        {% set action = trade[col] | upper if trade[col] else '' %}
                                         {% set action_class = trade[col] | lower if trade[col] else 'number-neutral' %}
                                         <span class="{{ action_class }}">
-                                            {{ action }}
+                                            {{ trade[col] | upper if trade[col] else '' }}
                                         </span>
                                     {% elif col == 'message' %}
-                                        <span class="column-tag">({{ tag }})</span>
                                         <span class="number-neutral">
-                                            {{ trade[col] | string if trade[col] is not none else '' }}
+                                            {{ trade[col] if trade[col] is not none and trade[col] != '' else 'No Message' }}
+                                        </span>
+                                    {% elif col == 'order_id' %}
+                                        <span class="number-neutral">
+                                            {{ trade[col] if trade[col] is not none and trade[col] != '' else 'None' }}
+                                        </span>
+                                    {% elif col == 'timeframe' %}
+                                        <span class="number-neutral">
+                                            {{ trade[col] if trade[col] is not none and trade[col] != '' else 'N/A' }}
                                         </span>
                                     {% else %}
-                                        <span class="column-tag">({{ tag }})</span>
                                         <span class="number-neutral">
-                                            {{ trade[col] | string if trade[col] is not none else '' }}
+                                            {{ trade[col] if trade[col] is not none else '' }}
                                         </span>
                                     {% endif %}
                                 </td>

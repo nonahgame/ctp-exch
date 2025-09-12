@@ -1,4 +1,4 @@
-<!-- templates/trade_record.html -->
+<!-- templates/trade_record.html working + coma -->
 <!DOCTYPE html>
 <html lang="en">
 <head>

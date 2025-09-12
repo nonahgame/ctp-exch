@@ -1,3 +1,4 @@
+# 1 *
 # app.py
 import os
 import pandas as pd
@@ -65,8 +66,8 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24).hex())
 BOT_TOKEN = os.getenv("BOT_TOKEN", "BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID", "CHAT_ID")
 SYMBOL = os.getenv("SYMBOL", "BTC/USDT")
-TIMEFRAME = os.getenv("TIMEFRAME", "1h")
-TIMEFRAMES = int(os.getenv("INTER_SECONDS", 3600))
+TIMEFRAME = os.getenv("TIMEFRAME", "TIMEFRAME")
+TIMEFRAMES = int(os.getenv("INTER_SECONDS", "INTER_SECONDS"))
 STOP_LOSS_PERCENT = float(os.getenv("STOP_LOSS_PERCENT", 2.0))
 TAKE_PROFIT_PERCENT = float(os.getenv("TAKE_PROFIT_PERCENT", 5.0))
 STOP_AFTER_SECONDS = float(os.getenv("STOP_AFTER_SECONDS", 0))
@@ -75,7 +76,7 @@ GITHUB_REPO = os.getenv("GITHUB_REPO", "GITHUB_REPO")
 GITHUB_PATH = os.getenv("GITHUB_PATH", "rnn_bot.db")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "BINANCE_API_KEY")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "BINANCE_API_SECRET")
-AMOUNTS = float(os.getenv("AMOUNTS", 100.0))
+AMOUNTS = float(os.getenv("AMOUNTS", "AMOUNTS"))
 
 # GitHub API setup
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
@@ -179,7 +180,7 @@ def download_from_github(file_name, destination_path):
     except Exception as e:
         logger.error(f"Error downloading {file_name} from GitHub: {e}", exc_info=True)
         return False
-
+# 2 *
 # Keep-alive mechanism
 def keep_alive():
     while True:
@@ -290,7 +291,7 @@ def setup_database(first_attempt=False):
                             macd_hollow REAL,
                             lst_diff REAL,
                             supertrend REAL,
-                            supertrend_trend INTEGER,
+                            supertrend_trend TEXT,
                             stoch_rsi REAL,
                             stoch_k REAL,
                             stoch_d REAL,
@@ -338,7 +339,7 @@ def setup_database(first_attempt=False):
                     'macd_hollow': 'REAL',
                     'lst_diff': 'REAL',
                     'supertrend': 'REAL',
-                    'supertrend_trend': 'INTEGER',
+                    'supertrend_trend': 'TEXT',
                     'stoch_rsi': 'REAL',
                     'stoch_k': 'REAL',
                     'stoch_d': 'REAL',
@@ -412,7 +413,7 @@ def setup_database(first_attempt=False):
                     macd_hollow REAL,
                     lst_diff REAL,
                     supertrend REAL,
-                    supertrend_trend INTEGER,
+                    supertrend_trend TEXT,
                     stoch_rsi REAL,
                     stoch_k REAL,
                     stoch_d REAL,
@@ -434,7 +435,7 @@ def setup_database(first_attempt=False):
                 conn.close()
                 conn = None
             return False
-
+# 3 *
 # Initialize database
 logger.info("Initializing database in main thread")
 if not setup_database(first_attempt=True):
@@ -529,7 +530,7 @@ def add_technical_indicators(df):
         supertrend_trend = df['Close'] > final_upperband.shift()
         supertrend_trend = supertrend_trend.fillna(True)
         df['supertrend'] = supertrend
-        df['supertrend_trend'] = supertrend_trend.astype(int)
+        df['supertrend_trend'] = np.where(supertrend_trend, 'Up', 'Down')
         df['supertrend_signal'] = np.where(
             supertrend_trend & ~supertrend_trend.shift().fillna(True), 'buy',
             np.where(~supertrend_trend & supertrend_trend.shift().fillna(True), 'sell', None)
@@ -557,7 +558,7 @@ def add_technical_indicators(df):
         elapsed = time.time() - start_time
         logger.error(f"Error calculating indicators after {elapsed:.3f}s: {e}")
         return df
-
+# 4 *
 # AI decision logic with market order placement
 def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAKE_PROFIT_PERCENT, position=None, buy_price=None):
     if df.empty or len(df) < 1:
@@ -579,7 +580,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
     lst_diff = latest['lst_diff'] if not pd.isna(latest['lst_diff']) else 0.0
     diff3k = latest['diff3k'] if not pd.isna(latest['diff3k']) else 0.0
     macd_hollow = latest['macd_hollow'] if not pd.isna(latest['macd_hollow']) else 0.0
-    supertrend_trend = latest['supertrend_trend'] if not pd.isna(latest['supertrend_trend']) else 0
+    supertrend_trend = latest['supertrend_trend']
     stop_loss = None
     take_profit = None
     action = "hold"
@@ -609,7 +610,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif (lst_diff < -0.00 and macd_hollow < 0.01 and diff3k < -0.00 and rsi > 50.00):
             logger.info(f"Sell triggered by macd_hollow: macd_hollow=Up, close={close_price:.2f}")
             action = "sell"
-        elif (supertrend_trend == 1.00 and kdj_j > 115.00 and rsi > 60.00):
+        elif (supertrend_trend == 'Up' and kdj_j > 115.00 and rsi > 60.00):
             logger.info(f"Sell triggered by Supertrend: supertrend_trend=Up, close={close_price:.2f}")
             action = "sell"
         elif (kdj_j > kdj_d and kdj_j > 100.00 and ema1 > ema2 and rsi > 60.00):
@@ -631,7 +632,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
                 f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"
             )
             action = "hold"
-        elif (supertrend_trend == 0.00 and kdj_j < -6.00 and rsi < 17.00):
+        elif (supertrend_trend == 'Down' and kdj_j < -6.00 and rsi < 17.00):
             logger.info(
                 f"Buy triggered by Supertrend: supertrend_trend=Down, close={close_price:.2f}"
             )
@@ -732,7 +733,7 @@ MACD Hist: {signal['macd_hist']:.2f}
 MACD Hollow: {signal['macd_hollow']:.2f}
 Lst Diff: {signal['lst_diff']:.2f}
 Supertrend: {signal['supertrend']:.2f}
-Supertrend Trend: {'Up' if signal['supertrend_trend'] else 'Down'}
+Supertrend Trend: {signal['supertrend_trend']}
 Stoch RSI: {signal['stoch_rsi']:.2f}
 Stoch K: {signal['stoch_k']:.2f}
 Stoch D: {signal['stoch_d']:.2f}
@@ -757,7 +758,7 @@ OBV: {signal['obv']:.2f}
             if attempt < retries - 1:
                 time.sleep(delay)
     logger.error(f"Failed to send Telegram message after {retries} attempts")
-
+# 5 *
 # Calculate next timeframe boundary
 def get_next_timeframe_boundary(current_time, timeframe_seconds):
     current_seconds = (current_time.hour * 3600 + current_time.minute * 60 + current_time.second)
@@ -804,7 +805,7 @@ def trading_bot():
             'macd_hollow': 0.0,
             'lst_diff': 0.0,
             'supertrend': 0.0,
-            'supertrend_trend': 0,
+            'supertrend_trend': 'None',
             'stoch_rsi': 0.0,
             'stoch_k': 0.0,
             'stoch_d': 0.0,
@@ -860,7 +861,7 @@ def trading_bot():
         'macd_hollow': 0.0,
         'lst_diff': 0.0,
         'supertrend': 0.0,
-        'supertrend_trend': 0,
+        'supertrend_trend': 'None',
         'stoch_rsi': 0.0,
         'stoch_k': 0.0,
         'stoch_d': 0.0,
@@ -1114,14 +1115,18 @@ def trading_bot():
             current_time = datetime.now(EU_TZ)
             seconds_to_wait = get_next_timeframe_boundary(current_time, timeframe_seconds)
             time.sleep(seconds_to_wait)
-
+# 6 *
 # Helper functions
 def create_signal(action, current_price, latest_data, df, profit, total_profit, return_profit, total_return_profit, msg, order_id, strategy):
     def safe_float(val, default=0.0):
         return float(val) if val is not None and not pd.isna(val) else default
 
-    def safe_int(val, default=0):
-        return int(val) if val is not None and not pd.isna(val) else default
+    def safe_str(val, default='None'):
+        if val is None or pd.isna(val):
+            return default
+        if isinstance(val, (int, float)):
+            return str(val)
+        return str(val)
 
     latest = df.iloc[-1] if not df.empty else pd.Series()
 
@@ -1157,14 +1162,14 @@ def create_signal(action, current_price, latest_data, df, profit, total_profit, 
         'macd_hollow': safe_float(latest.get('macd_hollow')),
         'lst_diff': safe_float(latest.get('lst_diff')),
         'supertrend': safe_float(latest.get('supertrend')),
-        'supertrend_trend': safe_int(latest.get('supertrend_trend')),
+        'supertrend_trend': safe_str(latest.get('supertrend_trend')),
         'stoch_rsi': safe_float(latest.get('stoch_rsi')),
         'stoch_k': safe_float(latest.get('stoch_k')),
         'stoch_d': safe_float(latest.get('stoch_d')),
         'obv': safe_float(latest.get('obv')),
         'message': msg,
         'timeframe': TIMEFRAME,
-        'order_id': order_id,
+        'order_id': order_id if order_id else None,
         'strategy': strategy
     }
 
@@ -1357,12 +1362,12 @@ Total Return Profit: {total_return_profit_db:.2f}
             conn = None
             return f"Error fetching trade counts: {str(e)}"
 
-def safe_float(val, default=0.0):
+def safe_float(val, default=0.00):
     try:
         return float(val)
     except (ValueError, TypeError):
         return default
-
+# 7 *
 # Flask routes
 @app.route('/')
 def index():
@@ -1384,11 +1389,12 @@ def index():
                         timeframe=TIMEFRAME,
                         trades=[],
                         stop_time=stop_time_str,
-                        current_time=current_time
-                    )
+                        current_time=current_time,
+                        background='white'
+                    ), 503
 
             c = conn.cursor()
-            c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT 16")
+            c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT 10")  # Changed to LIMIT 10
             rows = c.fetchall()
             columns = [col[0] for col in c.description]
             trades = [dict(zip(columns, row)) for row in rows]
@@ -1402,6 +1408,7 @@ def index():
             ]
 
             for trade in trades:
+                logger.debug(f"Index Trade ID {trade['id']}: action={trade['action']}, message={trade['message']}, supertrend_trend={trade['supertrend_trend']}")
                 for field in numeric_fields:
                     trade[field] = safe_float(trade.get(field))
 
@@ -1423,61 +1430,65 @@ def index():
                 timeframe=TIMEFRAME,
                 trades=trades,
                 stop_time=stop_time_str,
-                current_time=current_time
+                current_time=current_time,
+                background='white'
             )
 
         except Exception as e:
             elapsed = time.time() - start_time
             logger.error(f"Error rendering index.html after {elapsed:.3f}s: {e}")
-            conn = None
-            return "<h1>Error</h1><p>Failed to load page. Please try again later.</p>", 500
+            return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+            
+@app.route('/status')
+def status():
+    global bot_active, pause_start, pause_duration, stop_time
+    start_time = time.time()
+    try:
+        status = "active" if bot_active else (
+            f"paused for {int(pause_duration - (datetime.now(EU_TZ) - pause_start).total_seconds())} seconds"
+            if pause_start else "stopped"
+        )
+        stop_time_str = stop_time.strftime("%Y-%m-%d %H:%M:%S") if stop_time else "N/A"
+        elapsed = time.time() - start_time
+        logger.info(f"Fetched status in {elapsed:.3f}s: {status}")
+        return jsonify({
+            "status": status,
+            "stop_time": stop_time_str,
+            "current_time": datetime.now(EU_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        })
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.error(f"Error in /status route after {elapsed:.3f}s: {e}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
-@app.route('/trade_record', methods=['GET', 'POST'])
-def trade_record():
+@app.route('/performance')
+def performance():
+    start_time = time.time()
+    try:
+        perf_data = get_performance()
+        elapsed = time.time() - start_time
+        logger.info(f"Fetched performance data in {elapsed:.3f}s")
+        return jsonify({"performance": perf_data})
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.error(f"Error in /performance route after {elapsed:.3f}s: {e}")
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+@app.route('/trades')
+def trades():
     global conn
     start_time = time.time()
     with db_lock:
         try:
             if conn is None:
-                logger.warning("Database connection is None in trade_record route. Attempting to reinitialize.")
+                logger.warning("Database connection is None in trades route. Attempting to reinitialize.")
                 if not setup_database(first_attempt=True):
-                    logger.error("Failed to reinitialize database for trade_record route")
-                    return "<h1>Error</h1><p>Database unavailable. Please try again later.</p>", 503
+                    logger.error("Failed to reinitialize database for trades route")
+                    return jsonify({"error": "Database unavailable. Please try again later."}), 503
 
             c = conn.cursor()
-            page = int(request.args.get('page', 1))
-            per_page = 50
-            offset = (page - 1) * per_page
-
-            if request.method == 'POST':
-                column = request.form.get('column')
-                value = request.form.get('value')
-                logger.debug(f"Search request: column={column}, value={value}")
-                if column and value:
-                    try:
-                        if column in ['price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
-                                      'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
-                                      'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
-                                      'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
-                                      'stoch_rsi', 'stoch_k', 'stoch_d', 'obv']:
-                            value = float(value)
-                            query = f"SELECT * FROM trades WHERE {column} = ? ORDER BY time DESC LIMIT ? OFFSET ?"
-                            c.execute(query, (value, per_page, offset))
-                        else:
-                            query = f"SELECT * FROM trades WHERE {column} LIKE ? ORDER BY time DESC LIMIT ? OFFSET ?"
-                            c.execute(query, (f'%{value}%', per_page, offset))
-                        rows = c.fetchall()
-                    except Exception as e:
-                        logger.error(f"Error executing search query: {e}")
-                        return "<h1>Error</h1><p>Invalid search parameters.</p>", 400
-                else:
-                    logger.warning("Invalid search parameters")
-                    return "<h1>Error</h1><p>Invalid search parameters.</p>", 400
-            else:
-                logger.debug("Fetching trades with pagination")
-                c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT ? OFFSET ?", (per_page, offset))
-                rows = c.fetchall()
-
+            c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT 10")  # Changed to LIMIT 10
+            rows = c.fetchall()
             columns = [col[0] for col in c.description]
             trades = [dict(zip(columns, row)) for row in rows]
 
@@ -1490,41 +1501,118 @@ def trade_record():
             ]
 
             for trade in trades:
+                logger.debug(f"Trades Route ID {trade['id']}: action={trade['action']}, message={trade['message']}, supertrend_trend={trade['supertrend_trend']}")
+                for field in numeric_fields:
+                    trade[field] = safe_float(trade.get(field))
+
+            elapsed = time.time() - start_time
+            logger.info(f"Fetched trades for /trades: count={len(trades)}, query_time={elapsed:.3f}s")
+            return jsonify(trades)
+
+        except sqlite3.OperationalError as e:
+            elapsed = time.time() - start_time
+            logger.error(f"Database error in /trades route after {elapsed:.3f}s: {e}")
+            return jsonify({"error": f"Database error: {str(e)}"}), 500
+        except Exception as e:
+            elapsed = time.time() - start_time
+            logger.error(f"Error in /trades route after {elapsed:.3f}s: {e}")
+            return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+
+@app.route('/trade_record', methods=['GET', 'POST'])
+def trade_record():
+    global conn
+    start_time = time.time()
+    page = int(request.args.get('page', 1))
+    per_page = 50
+    offset = (page - 1) * per_page
+    search_column = request.form.get('column') if request.method == 'POST' else None
+    search_value = request.form.get('value') if request.method == 'POST' else None
+
+    with db_lock:
+        try:
+            if conn is None:
+                logger.warning("Database connection is None in trade_record route. Attempting to reinitialize.")
+                if not setup_database(first_attempt=True):
+                    logger.error("Failed to reinitialize database for trade_record route")
+                    return jsonify({"error": "Database unavailable. Please try again later."}), 503
+
+            c = conn.cursor()
+            columns = [
+                'id', 'time', 'action', 'symbol', 'price', 'open_price', 'close_price', 'volume',
+                'percent_change', 'stop_loss', 'take_profit', 'profit', 'total_profit',
+                'return_profit', 'total_return_profit', 'message', 'timeframe', 'order_id',
+                'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
+                'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
+                'supertrend_trend', 'stoch_rsi', 'stoch_k', 'stoch_d', 'obv', 'strategy'
+            ]
+            tags = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+                    'aa', 'ab', 'ac', 'ad', 'ae', 'af', 'ag', 'ah', 'ai', 'aj', 'ak', 'al', 'am', 'an', 'ao', 'ap', 'aq']
+            column_tags = list(zip(columns, tags))
+
+            if request.method == 'POST' and search_column and search_value:
+                if search_column in ['price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
+                                    'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
+                                    'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
+                                    'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
+                                    'stoch_rsi', 'stoch_k', 'stoch_d', 'obv']:
+                    query = f"SELECT * FROM trades WHERE {search_column} = ? ORDER BY time DESC LIMIT ? OFFSET ?"
+                    c.execute(query, (float(search_value), per_page, offset))
+                else:
+                    query = f"SELECT * FROM trades WHERE {search_column} LIKE ? ORDER BY time DESC LIMIT ? OFFSET ?"
+                    c.execute(query, (f'%{search_value}%', per_page, offset))
+            else:
+                c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT ? OFFSET ?", (per_page, offset))
+
+            rows = c.fetchall()
+            trades = [dict(zip(columns, row)) for row in rows]
+
+            numeric_fields = [
+                'price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
+                'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
+                'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
+                'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
+                'stoch_rsi', 'stoch_k', 'stoch_d', 'obv'
+            ]
+
+            for trade in trades:
+                logger.debug(f"Trade Record ID {trade['id']}: action={trade['action']}, message={trade['message']}, supertrend_trend={trade['supertrend_trend']}")
                 for field in numeric_fields:
                     trade[field] = safe_float(trade.get(field))
 
             c.execute("SELECT COUNT(*) FROM trades")
             total_trades = c.fetchone()[0]
-            #total_pages = (total_trades // per_page) + (1 if total_trades % per_page else
-            total_pages = (total_trades // per_page) + (1 if total_trades % per_page else 0)
+            total_pages = (total_trades + per_page - 1) // per_page
 
-            # Prepare pagination data
             prev_page = page - 1 if page > 1 else None
             next_page = page + 1 if page < total_pages else None
 
             elapsed = time.time() - start_time
             logger.info(
-                f"Rendering trade_record.html: page={page}, per_page={per_page}, total_trades={total_trades}, "
-                f"total_pages={total_pages}, trades_fetched={len(trades)}, query_time={elapsed:.3f}s"
+                f"Rendering trade_record.html: page={page}, trades={len(trades)}, "
+                f"total_pages={total_pages}, query_time={elapsed:.3f}s"
             )
 
             return render_template(
                 'trade_record.html',
                 trades=trades,
+                column_tags=column_tags,
                 page=page,
                 total_pages=total_pages,
                 prev_page=prev_page,
                 next_page=next_page,
-                columns=columns,
+                background='white',
                 numeric_fields=numeric_fields
             )
 
+        except sqlite3.OperationalError as e:
+            elapsed = time.time() - start_time
+            logger.error(f"Database error in trade_record route after {elapsed:.3f}s: {e}")
+            return jsonify({"error": f"Database error: {str(e)}"}), 500
         except Exception as e:
             elapsed = time.time() - start_time
-            logger.error(f"Error rendering trade_record.html after {elapsed:.3f}s: {e}")
-            conn = None
-            return "<h1>Error</h1><p>Failed to load trade records. Please try again later.</p>", 500
-
+            logger.error(f"Error in trade_record route after {elapsed:.3f}s: {e}")
+            return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+# 8 *
 # Start background threads
 def start_background_threads():
     global bot_thread
@@ -1565,6 +1653,9 @@ def cleanup():
                 conn = None
 
 atexit.register(cleanup)
+
+# Initialize database
+setup_database()
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 4000))

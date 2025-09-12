@@ -1,0 +1,206 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Bot Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        h1, h2 {
+            text-align: center;
+            color: #333;
+        }
+        .navbar {
+            background-color: #4CAF50;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .navbar a {
+            color: white;
+            margin: 0 15px;
+            text-decoration: none;
+            font-size: 16px;
+        }
+        .navbar a:hover {
+            text-decoration: underline;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .signal, .status, .performance {
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .pagination {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .pagination a {
+            margin: 0 10px;
+            text-decoration: none;
+            font-size: 18px;
+            color: #4CAF50;
+        }
+        .pagination a.disabled {
+            color: #ccc;
+            pointer-events: none;
+        }
+        .pagination a:hover:not(.disabled) {
+            color: #45a049;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+        @media (max-width: 600px) {
+            table, .navbar a {
+                font-size: 14px;
+            }
+            .section {
+                padding: 10px;
+            }
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Fetch trades
+            $.getJSON('/trades', function(data) {
+                if (data.error) {
+                    $('#trades').html('<p>Error loading trades: ' + data.error + '</p>');
+                    return;
+                }
+                let html = '<table><thead><tr>';
+                const columns = ['time', 'action', 'symbol', 'price', 'profit', 'total_profit', 'message'];
+                columns.forEach(col => {
+                    html += '<th>' + col.replace('_', ' ').toUpperCase() + '</th>';
+                });
+                html += '</tr></thead><tbody>';
+                data.forEach(trade => {
+                    html += '<tr>';
+                    columns.forEach(col => {
+                        let value = trade[col];
+                        if (['price', 'profit', 'total_profit'].includes(col) && value != null) {
+                            value = Number(value).toFixed(2);
+                        } else if (value == null) {
+                            value = '';
+                        }
+                        html += '<td>' + value + '</td>';
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                $('#trades').html(html);
+            }).fail(function() {
+                $('#trades').html('<p>Failed to load trades.</p>');
+            });
+
+            // Fetch performance
+            $.getJSON('/performance', function(data) {
+                if (data.error) {
+                    $('#performance').html('<p>Error loading performance: ' + data.error + '</p>');
+                    return;
+                }
+                $('#performance').html('<pre>' + data.performance + '</pre>');
+            }).fail(function() {
+                $('#performance').html('<p>Failed to load performance data.</p>');
+            });
+
+            // Fetch status
+            $.getJSON('/status', function(data) {
+                if (data.error) {
+                    $('#status').html('<p>Error loading status: ' + data.error + '</p>');
+                    return;
+                }
+                let html = '<p><strong>Status:</strong> ' + data.status + '</p>';
+                html += '<p><strong>Current Time:</strong> ' + data.current_time + '</p>';
+                html += '<p><strong>Stop Time:</strong> ' + data.stop_time + '</p>';
+                $('#status').html(html);
+            }).fail(function() {
+                $('#status').html('<p>Failed to load status.</p>');
+            });
+        });
+    </script>
+</head>
+<body>
+    <div class="navbar">
+        <a href="{{ url_for('index') }}">Dashboard</a>
+        <a href="{{ url_for('trade_record', page=1) }}">Trade Records</a>
+    </div>
+    <div class="container">
+        <h1>Trading Bot Dashboard</h1>
+        
+        <div class="section signal">
+            <h2>Latest Signal</h2>
+            {% if signal %}
+                <table>
+                    <tr><th>Time</th><td>{{ signal.time }}</td></tr>
+                    <tr><th>Action</th><td>{{ signal.action | upper }}</td></tr>
+                    <tr><th>Symbol</th><td>{{ signal.symbol }}</td></tr>
+                    <tr><th>Price</th><td>{{ signal.price | round(2) }}</td></tr>
+                    <tr><th>Profit</th><td>{{ signal.profit | round(2) if signal.profit is not none else '' }}</td></tr>
+                    <tr><th>Total Profit</th><td>{{ signal.total_profit | round(2) if signal.total_profit is not none else '' }}</td></tr>
+                    <tr><th>Message</th><td>{{ signal.message }}</td></tr>
+                    <tr><th>Timeframe</th><td>{{ signal.timeframe }}</td></tr>
+                    <tr><th>Order ID</th><td>{{ signal.order_id if signal.order_id else '' }}</td></tr>
+                </table>
+            {% else %}
+                <p>No signals available.</p>
+            {% endif %}
+        </div>
+
+        <div class="section status" id="status">
+            <h2>Bot Status</h2>
+            <p class="loading">Loading status...</p>
+        </div>
+
+        <div class="section performance" id="performance">
+            <h2>Performance Metrics</h2>
+            <p class="loading">Loading performance data...</p>
+        </div>
+
+        <div class="section trades" id="trades">
+            <h2>Recent Trades</h2>
+            <p class="loading">Loading trades...</p>
+        </div>
+
+        <div class="pagination">
+            <a href="{{ url_for('trade_record', page=1) }}">View All Trades ➡️</a>
+        </div>
+    </div>
+</body>
+</html>

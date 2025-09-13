@@ -42,12 +42,13 @@
                 {% for col, tag in column_tags %}
                 <td>
                     {% if col == 'supertrend_trend' %}
-                      {% if trade[col] == "Up" %}
-                          <span class="up">Up</span>
-                       {% else %}
-                          <span class="down">Down</span>
-                       {% endif %}
+                        {% if trade[col] == "Up" %}
+                            <span class="up">Up</span>
+                        {% else %}
+                           <span class="down">Down</span>
+                        {% endif %}
                     {% endif %}
+                    
                     {% elif col == 'action' %}
                         {% if trade[col] %}
                             <span class="{{ trade[col] | lower }}">{{ trade[col] | upper }}</span>

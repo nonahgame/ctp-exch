@@ -1627,17 +1627,20 @@ def trade_record():
                         trade['message'] = str(msg)
 
                 # Ensure supertrend_trend is either int 1/0 or a readable string
+                # Map supertrend_trend to Up/Down
                 if 'supertrend_trend' in trade:
                     st = trade.get('supertrend_trend')
-                    if st is None or st == '':
-                        trade['supertrend_trend'] = None
-                    else:
-                        # try converting numeric strings -> int
-                        try:
-                            st_i = int(float(st))
-                            trade['supertrend_trend'] = st_i
-                        except Exception:
-                            trade['supertrend_trend'] = str(st)  # maybe 'Up'/'Down' already
+                    label = "Down"  # default fallback
+                    try:
+                        st_i = int(float(st))
+                        if st_i == 1:
+                            label = "Up"
+                        elif st_i in (0, -1):
+                            label = "Down"
+                    except Exception:
+                        if str(st).lower() in ("up", "down"):
+                            label = str(st).capitalize()
+                    trade['supertrend_trend'] = label # maybe 'Up'/'Down' already
 
                 # action: normalize to upper-case string (BUY/SELL) if present
                 if 'action' in trade:

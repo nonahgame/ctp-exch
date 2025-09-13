@@ -1528,69 +1528,132 @@ def trade_record():
     search_column = request.form.get('column') if request.method == 'POST' else None
     search_value = request.form.get('value') if request.method == 'POST' else None
 
-    with db_lock:
+    def _safe_float(val):
         try:
+            if val is None or val == '':
+                return None
+            return float(val)
+        except (ValueError, TypeError):
+            return None
+
+    try:
+        with db_lock:
             if conn is None:
-                logger.warning("Database connection is None in trade_record route. Attempting to reinitialize.")
+                logger.warning("DB connection is None in trade_record route, attempting to reinit.")
                 if not setup_database(first_attempt=True):
-                    logger.error("Failed to reinitialize database for trade_record route")
-                    return jsonify({"error": "Database unavailable. Please try again later."}), 503
+                    logger.error("Failed to reinitialize DB for trade_record")
+                    return jsonify({"error": "Database unavailable."}), 503
 
             c = conn.cursor()
-            columns = [
-                'id', 'time', 'action', 'symbol', 'price', 'open_price', 'close_price', 'volume',
-                'percent_change', 'stop_loss', 'take_profit', 'profit', 'total_profit',
-                'return_profit', 'total_return_profit', 'message', 'timeframe', 'order_id',
-                'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
-                'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
-                'supertrend_trend', 'stoch_rsi', 'stoch_k', 'stoch_d', 'obv', 'strategy'
-            ]
-            tags = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-                    'aa', 'ab', 'ac', 'ad', 'ae', 'af', 'ag', 'ah', 'ai', 'aj', 'ak', 'al', 'am', 'an', 'ao', 'ap', 'aq']
-            column_tags = list(zip(columns, tags))
 
+            # Build & execute query (same logic you had)
             if request.method == 'POST' and search_column and search_value:
-                if search_column in ['price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
-                                    'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
-                                    'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
-                                    'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
-                                    'stoch_rsi', 'stoch_k', 'stoch_d', 'obv']:
+                numeric_search_cols = {
+                    'price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
+                    'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
+                    'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
+                    'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
+                    'stoch_rsi', 'stoch_k', 'stoch_d', 'obv'
+                }
+                if search_column in numeric_search_cols:
                     query = f"SELECT * FROM trades WHERE {search_column} = ? ORDER BY time DESC LIMIT ? OFFSET ?"
-                    c.execute(query, (float(search_value), per_page, offset))
+                    params = (float(search_value), per_page, offset)
                 else:
                     query = f"SELECT * FROM trades WHERE {search_column} LIKE ? ORDER BY time DESC LIMIT ? OFFSET ?"
-                    c.execute(query, (f'%{search_value}%', per_page, offset))
+                    params = (f'%{search_value}%', per_page, offset)
+                c.execute(query, params)
             else:
                 c.execute("SELECT * FROM trades ORDER BY time DESC LIMIT ? OFFSET ?", (per_page, offset))
 
             rows = c.fetchall()
-            trades = [dict(zip(columns, row)) for row in rows]
+            # IMPORTANT: get the actual column names returned by SQLite
+            db_columns = [desc[0] for desc in c.description]
+            logger.debug("trade_record: db_columns = %s", db_columns)
 
-            numeric_fields = [
+            # Build tags dynamically (take as many as needed)
+            tags = ['a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t',
+                    'u','v','w','x','y','z','aa','ab','ac','ad','ae','af','ag','ah','ai','aj','ak','al',
+                    'am','an','ao','ap','aq']
+            column_tags = list(zip(db_columns, tags[:len(db_columns)]))
+
+            # Convert rows into dicts using the real DB column names
+            trades = [dict(zip(db_columns, row)) for row in rows]
+
+            # Only coerce numeric fields that actually exist in the returned columns
+            default_numeric_fields = {
                 'price', 'open_price', 'close_price', 'volume', 'percent_change', 'stop_loss',
                 'take_profit', 'profit', 'total_profit', 'return_profit', 'total_return_profit',
                 'ema1', 'ema2', 'rsi', 'k', 'd', 'j', 'diff', 'diff1e', 'diff2m', 'diff3k',
                 'macd', 'macd_signal', 'macd_hist', 'macd_hollow', 'lst_diff', 'supertrend',
                 'stoch_rsi', 'stoch_k', 'stoch_d', 'obv'
-            ]
+            }
+            numeric_fields = [f for f in db_columns if f in default_numeric_fields]
 
+            # Format and coerce fields safely
+            tf_map = {1: "1m", 3: "3m", 5: "5m", 15: "15m", 30: "30m", 60: "1h"}
             for trade in trades:
-                logger.debug(f"Trade Record ID {trade['id']}: action={trade['action']}, message={trade['message']}, supertrend_trend={trade['supertrend_trend']}")
-                for field in numeric_fields:
-                    trade[field] = safe_float(trade.get(field))
+                # Log sample to help debug (will show what values are mapped to which keys)
+                logger.debug("raw trade sample before cast: %s", {k: trade.get(k) for k in ('timeframe','order_id','message','supertrend_trend','price')})
 
+                # numeric conversions
+                for fld in numeric_fields:
+                    if fld in trade:
+                        trade[fld] = _safe_float(trade.get(fld))
+
+                # timeframe: if numeric or numeric-string convert to friendly label
+                if 'timeframe' in trade:
+                    tf_val = trade.get('timeframe')
+                    if tf_val is None or tf_val == '':
+                        trade['timeframe'] = None
+                    else:
+                        # try convert to int then map; otherwise keep original string
+                        try:
+                            trade['timeframe'] = tf_map.get(int(tf_val), str(tf_val))
+                        except Exception:
+                            # leave as-is (string maybe '1m' already)
+                            trade['timeframe'] = str(tf_val)
+
+                # order_id: ensure string (or empty)
+                if 'order_id' in trade:
+                    oid = trade.get('order_id')
+                    trade['order_id'] = '' if oid is None else str(oid)
+
+                # message: ensure string-friendly
+                if 'message' in trade:
+                    msg = trade.get('message')
+                    if msg is None:
+                        trade['message'] = ''
+                    else:
+                        trade['message'] = str(msg)
+
+                # Ensure supertrend_trend is either int 1/0 or a readable string
+                if 'supertrend_trend' in trade:
+                    st = trade.get('supertrend_trend')
+                    if st is None or st == '':
+                        trade['supertrend_trend'] = None
+                    else:
+                        # try converting numeric strings -> int
+                        try:
+                            st_i = int(float(st))
+                            trade['supertrend_trend'] = st_i
+                        except Exception:
+                            trade['supertrend_trend'] = str(st)  # maybe 'Up'/'Down' already
+
+                # action: normalize to upper-case string (BUY/SELL) if present
+                if 'action' in trade:
+                    act = trade.get('action')
+                    trade['action'] = str(act).upper() if act is not None else ''
+
+            # get total count for pagination
             c.execute("SELECT COUNT(*) FROM trades")
             total_trades = c.fetchone()[0]
             total_pages = (total_trades + per_page - 1) // per_page
-
             prev_page = page - 1 if page > 1 else None
             next_page = page + 1 if page < total_pages else None
 
             elapsed = time.time() - start_time
-            logger.info(
-                f"Rendering trade_record.html: page={page}, trades={len(trades)}, "
-                f"total_pages={total_pages}, query_time={elapsed:.3f}s"
-            )
+            logger.info("Rendering trade_record: page=%s trades=%d total_pages=%d (query_time=%.3fs)",
+                        page, len(trades), total_pages, elapsed)
 
             return render_template(
                 'trade_record.html',
@@ -1604,14 +1667,14 @@ def trade_record():
                 numeric_fields=numeric_fields
             )
 
-        except sqlite3.OperationalError as e:
-            elapsed = time.time() - start_time
-            logger.error(f"Database error in trade_record route after {elapsed:.3f}s: {e}")
-            return jsonify({"error": f"Database error: {str(e)}"}), 500
-        except Exception as e:
-            elapsed = time.time() - start_time
-            logger.error(f"Error in trade_record route after {elapsed:.3f}s: {e}")
-            return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+    except sqlite3.OperationalError as e:
+        elapsed = time.time() - start_time
+        logger.error("Database error in trade_record after %.3fs: %s", elapsed, e)
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.exception("Unhandled error in trade_record after %.3fs", elapsed)
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 # 8 *
 # Start background threads
 def start_background_threads():

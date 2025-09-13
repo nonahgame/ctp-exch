@@ -625,18 +625,18 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
             logger.info(
                 f"Buy triggered by macd_hollow: macd_hollow=Down, close={close_price:.2f}"
             )
-            action = "hold"
+            action = "buy"
         elif (kdj_j < kdj_d and kdj_j < -5.00 and ema1 < ema2 and rsi < 19.00):
             logger.info(
                 f"Buy triggered by KDJ/MACD: kdj_j={kdj_j:.2f}, kdj_d={kdj_d:.2f}, "
                 f"macd_hist={(macd - macd_signal):.2f}, close={close_price:.2f}"
             )
-            action = "hold"
+            action = "buy"
         elif (supertrend_trend == 'Down' and kdj_j < -6.00 and rsi < 17.00):
             logger.info(
                 f"Buy triggered by Supertrend: supertrend_trend=Down, close={close_price:.2f}"
             )
-            action = "hold"
+            action = "buy"
 
     if action == "buy" and position is not None:
         logger.debug("Prevented consecutive buy order.")

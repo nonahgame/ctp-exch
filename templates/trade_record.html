@@ -1,0 +1,267 @@
+<!-- templates/trade_record.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IfyBng Records</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; transition: background-color 0.3s, color 0.3s; }
+        body.white { background-color: #f4f4f4; color: #333; }
+        body.black { background-color: #1a1a1a; color: #fff; }
+
+        h1 { text-align: center; }
+
+        .navbar { padding: 10px; margin-bottom: 20px; border-radius: 5px; text-align: center; }
+        body.white .navbar { background-color: #4CAF50; }
+        body.black .navbar { background-color: #333; }
+        .navbar a { margin: 0 15px; text-decoration: none; font-size: 16px; }
+        body.white .navbar a { color: white; }
+        body.black .navbar a { color: #1e90ff; }
+        .navbar a:hover { text-decoration: underline; }
+
+        .background-toggle { text-align: center; margin-bottom: 20px; }
+        .background-toggle button { padding: 8px 16px; margin: 0 5px; cursor: pointer; }
+
+        body.white .background-toggle button { background-color: #4CAF50; color: white; border: none; }
+        body.black .background-toggle button { background-color: #333; color: #1e90ff; border: 1px solid #444; }
+
+        .search-form { margin-bottom: 20px; text-align: center; }
+        .search-form select, .search-form input { padding: 8px; margin: 5px; font-size: 16px; }
+        .search-form button { padding: 8px 16px; cursor: pointer; }
+
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        th, td { padding: 10px; text-align: left; border: 1px solid; }
+
+        body.white th { background-color: #4CAF50; color: white; border-color: #ddd; }
+        body.black th { background-color: #333; color: #1e90ff; border-color: #444; }
+        body.white tr:nth-child(even) { background-color: #f9f9f9; }
+        body.black tr:nth-child(even) { background-color: #222; }
+
+        .column-tag { font-weight: bold; margin-right: 5px; }
+        body.white .column-tag { color: #a52a2a; }
+        body.black .column-tag { color: #ff0; }
+
+        body.black .number-positive, body.black .buy, body.black .up { color: #00ff00; }
+        body.black .number-negative, body.black .sell, body.black .down { color: #ff0000; }
+        body.black .number-neutral, body.black .hold { color: #ffffff; }
+        body.white .number-positive, body.white .number-negative, body.white .buy, body.white .sell,
+        body.white .up, body.white .down, body.white .hold, body.white .number-neutral { color: inherit; }
+
+        .pagination { text-align: center; margin-top: 20px; }
+        .pagination a { margin: 0 10px; text-decoration: none; font-size: 18px; }
+        body.white .pagination a { color: #4CAF50; }
+        body.black .pagination a { color: #1e90ff; }
+
+        .error { text-align: center; color: #666; }
+        body.black .error { color: #ccc; }
+
+        /* Dropdown for display columns */
+        .dropdown { position: relative; display: inline-block; }
+        .dropbtn {
+            padding: 8px 16px;
+            font-size: 16px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background-color: #fff;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 250px;
+            max-height: 300px;
+            overflow-y: auto;
+            box-shadow: 0px 8px 16px rgba(0,0,0,0.2);
+            padding: 10px;
+            z-index: 1000;
+            text-align: left;
+        }
+        .dropdown-content label {
+            display: block;
+            margin-bottom: 5px;
+            cursor: pointer;
+        }
+        .dropdown.show .dropdown-content { display: block; }
+        .hidden-col { display: none; }
+    </style>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // ✅ Background theme persistence
+            const background = localStorage.getItem('background') || 'white';
+            $('body').addClass(background);
+            updateButtonStates(background);
+
+            $('.background-toggle button').click(function() {
+                const newBackground = $(this).data('background');
+                $('body').removeClass('white black').addClass(newBackground);
+                localStorage.setItem('background', newBackground);
+                updateButtonStates(newBackground);
+            });
+
+            function updateButtonStates(background) {
+                $('.background-toggle button').each(function() {
+                    $(this).prop('disabled', $(this).data('background') === background);
+                });
+            }
+
+            // ✅ Dropdown toggle
+            $('.dropbtn').on('click', function(e) {
+                e.preventDefault();
+                $(this).parent().toggleClass('show');
+            });
+            $(window).on('click', function(e) {
+                if (!$(e.target).closest('.dropdown').length) {
+                    $('.dropdown').removeClass('show');
+                }
+            });
+
+            // ✅ Column selection persistence
+            const savedColumns = JSON.parse(localStorage.getItem('selectedColumns')) || [];
+            if (savedColumns.length > 0) {
+                $('table th, table td').each(function(index) {
+                    const colName = $(this).data('colname');
+                    if (colName && !savedColumns.includes(colName)) {
+                        $(`th[data-colname="${colName}"], td[data-colname="${colName}"]`).addClass('hidden-col');
+                    }
+                });
+            }
+
+            $('.dropdown-content input[type="checkbox"]').each(function() {
+                const col = $(this).val();
+                if (savedColumns.length === 0 || savedColumns.includes(col)) {
+                    $(this).prop('checked', true);
+                }
+            });
+
+            $('.dropdown-content input[type="checkbox"]').change(function() {
+                const col = $(this).val();
+                if ($(this).is(':checked')) {
+                    $(`th[data-colname="${col}"], td[data-colname="${col}"]`).removeClass('hidden-col');
+                    if (!savedColumns.includes(col)) savedColumns.push(col);
+                } else {
+                    $(`th[data-colname="${col}"], td[data-colname="${col}"]`).addClass('hidden-col');
+                    const idx = savedColumns.indexOf(col);
+                    if (idx !== -1) savedColumns.splice(idx, 1);
+                }
+                localStorage.setItem('selectedColumns', JSON.stringify(savedColumns));
+            });
+        });
+    </script>
+</head>
+<body class="{{ background }}">
+    <div class="background-toggle">
+        <button data-background="white">White Background</button>
+        <button data-background="black">Black Background</button>
+    </div>
+
+    <div class="navbar">
+        <a href="{{ url_for('index') }}">🏠 Dashboard</a>
+        <a href="{{ url_for('trade_record', page=1) }}">📊 Trade Records</a>
+    </div>
+
+    <h1>IfyBng Records</h1>
+
+    <!-- Search + Display Section -->
+    <div class="search-form">
+        <!-- Search Bar -->
+        <form method="POST" action="{{ url_for('trade_record', page=page) }}">
+            <select name="column">
+                {% for col, tag in column_tags %}
+                    <option value="{{ col }}">({{ tag }}) {{ col | replace('_',' ') | title }}</option>
+                {% endfor %}
+            </select>
+            <input type="text" name="value" placeholder="Enter search value" required>
+            <button type="submit">🔍 Search</button>
+        </form>
+
+        <!-- Display Column Selector -->
+        <div class="dropdown" style="margin-top:10px; display:inline-block;">
+            <button type="button" class="dropbtn">▼ Select Columns</button>
+            <div class="dropdown-content">
+                {% for col, tag in column_tags %}
+                    <label>
+                        <input type="checkbox" name="display_columns" value="{{ col }}">
+                        ({{ tag }}) {{ col | replace('_',' ') | title }}
+                    </label>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    {% if trades %}
+        <table>
+            <thead>
+                <tr>
+                    {% for col, tag in column_tags %}
+                        <th data-colname="{{ col }}">({{ tag }}) {{ col | replace('_',' ') | title }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for trade in trades %}
+                    <tr>
+                        {% for col, tag in column_tags %}
+                            <td data-colname="{{ col }}">
+                                <span class="column-tag">({{ tag }})</span>
+                                {% if col in numeric_fields %}
+                                    {% set value = trade[col] | round(2) if trade[col] is not none else '' %}
+                                    <span class="{% if value and value > 0 %}number-positive{% elif value and value < 0 %}number-negative{% else %}number-neutral{% endif %}">
+                                        {{ value }}
+                                    </span>
+                                {% elif col == 'supertrend_trend' %}
+                                    {% if trade[col] == 1 or trade[col] == 'Up' %}
+                                        <span class="up">Up</span>
+                                    {% elif trade[col] == 0 or trade[col] == 'Down' %}
+                                        <span class="down">Down</span>
+                                    {% else %}
+                                        <span class="number-neutral">None</span>
+                                    {% endif %}
+                                {% elif col == 'action' %}
+                                    {% set action_class = trade[col] | lower if trade[col] else 'number-neutral' %}
+                                    <span class="{{ action_class }}">
+                                        {{ trade[col] | upper if trade[col] else 'NONE' }}
+                                    </span>
+                                {% elif col == 'message' %}
+                                    <span class="number-neutral">
+                                        {{ trade[col] if trade[col] else 'No Message' }}
+                                    </span>
+                                {% elif col == 'order_id' %}
+                                    <span class="number-neutral">
+                                        {{ trade[col] if trade[col] else 'None' }}
+                                    </span>
+                                {% elif col == 'timeframe' %}
+                                    {% set tf_map = {1:"1m",3:"3m",5:"5m",15:"15m",30:"30m",60:"1h",120:"2h",240:"4h",1440:"1d"} %}
+                                    <span class="number-neutral">
+                                        {{ tf_map.get(trade[col], trade[col] if trade[col] else 'N/A') }}
+                                    </span>
+                                {% else %}
+                                    <span class="number-neutral">{{ trade[col] if trade[col] else '' }}</span>
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="error">No trades found.</p>
+    {% endif %}
+
+    <div class="pagination">
+        {% if prev_page %}
+            <a href="{{ url_for('trade_record', page=prev_page) }}">⬅️</a>
+        {% else %}
+            <a class="disabled">⬅️</a>
+        {% endif %}
+        <span>Page {{ page }} of {{ total_pages }}</span>
+        {% if next_page %}
+            <a href="{{ url_for('trade_record', page=next_page) }}">➡️</a>
+        {% else %}
+            <a class="disabled">➡️</a>
+        {% endif %}
+    </div>
+</body>
+</html>

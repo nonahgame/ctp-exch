@@ -78,6 +78,18 @@ BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "BINANCE_API_KEY")
 BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET", "BINANCE_API_SECRET")
 AMOUNTS = float(os.getenv("AMOUNTS", "AMOUNTS"))
 
+"""
+this bot is still now on DOGE trade
+have strategy filter and can search base on trade record html 
+this app works with 4000 port
+no login pattern but still no the process 
+strategy use close>open to buy and sell in opposite direction
+it works with stop lost take profit 
+it store data in sqlit3 on GitHub 
+and many more 
+we will make it to use 2 bot ie, def trading_bot() and def optimize_bot()
+this optimize_bot() will be organizing the trade for trading_bot but still yet
+"""
 # GitHub API setup
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_PATH}"
 HEADERS = {
@@ -622,7 +634,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         elif (lst_diff < -0.10 and macd_hollow >= 0.00 and stoch_rsi >= 0.99 and stoch_k >= 99.99 and stoch_d >= 94.97 and diff1e > 1.00 and rsi > 75.00):
             logger.info(f"Sell triggered by macd_hollow: macd_hollow=Up, close={close_price:.2f}")
             action = "sell"
-        elif (diff <= -0.00 and macd_hollow <= 0.00):
+        elif (diff <= -0.00 and diff3k <= -0.00):
             logger.info(f"Sell triggered by Supertrend: supertrend_trend=Up, close={close_price:.2f}")
             action = "sell"
         #elif (kdj_j > kdj_d and kdj_j > 115.00 and macd > macd_signal and ema1 > ema2 and rsi < 83.00):
@@ -636,7 +648,7 @@ def ai_decision(df, stop_loss_percent=STOP_LOSS_PERCENT, take_profit_percent=TAK
         #    action = "sell"
 
     if action == "hold" and position is None:
-        if (diff >= 0.00 and diff3k > 0.00 and diff2m > 0.00):
+        if (diff >= 0.00 and diff2m >= 0.00):
             logger.info(f"Buy triggered by macd_hollow: macd_hollow=Down, close={close_price:.2f}")
             action = "buy"
     #if action == "hold" and position is None:
